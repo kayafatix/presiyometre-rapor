@@ -336,6 +336,7 @@ def rapor():
     return render_template('rapor.html',
                            raporlar=raporlar,
                            toplam=len(raporlar),
+                           mode=os.environ.get('DEPLOY_MODE', 'desktop'),
                            firma_adi=firma_adi,
                            logo_url=logo_url,
                            footer=footer)
