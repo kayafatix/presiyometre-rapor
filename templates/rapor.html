@@ -6,7 +6,9 @@
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-dragdata@2.3.0/dist/chartjs-plugin-dragdata.min.js"></script>
+    {% if mode == 'web' %}
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    {% endif %}
     <style>
         .edit-toolbar {
             text-align: center;
@@ -106,8 +108,11 @@
     <!-- Yazdırma / PDF Butonu -->
     <div class="no-print" style="text-align:center; padding:12px 20px; background:linear-gradient(135deg, #2c3e50, #34495e); color:white; position:sticky; top:0; z-index:100; box-shadow:0 2px 10px rgba(0,0,0,0.2);">
         <span style="margin-right:25px; font-size:0.95em;">📄 Toplam <strong>{{ toplam }}</strong> rapor föyü oluşturuldu</span>
+        {% if mode == 'desktop' %}
         <button class="btn-print" onclick="window.print()" style="display:inline-block; margin:0;">🖨️ Tümünü Yazdır</button>
-        <button class="btn-print" onclick="downloadAllPDF()" style="display:inline-block; margin:0 0 0 10px; background:#e74c3c;">📥 Tümünü PDF İndir</button>
+        {% else %}
+        <button class="btn-print" onclick="downloadAllPDF()" style="display:inline-block; margin:0; background:#e74c3c;">📥 Tümünü PDF İndir</button>
+        {% endif %}
         <a href="/" style="margin-left:25px; color:#bdc3c7; text-decoration:none; font-size:0.9em;">← Geri Dön</a>
     </div>
 
@@ -115,8 +120,11 @@
     <div class="rapor-sayfa" id="foy_{{ loop.index }}">
         <!-- Föy Kaydetme Toolbar -->
         <div class="foy-toolbar no-print" style="text-align:right; margin-bottom:3px;">
-            <button onclick="downloadFoyPDF({{ loop.index }}, '{{ data.kuyu_no }}', '{{ data.deney_derinligi }}')" style="padding:3px 10px; font-size:7.5pt; background:#e74c3c; color:white; border:none; border-radius:3px; cursor:pointer;">📥 PDF İndir</button>
+            {% if mode == 'desktop' %}
             <button onclick="saveSingleFoy({{ loop.index }}, '{{ data.kuyu_no }}', '{{ data.deney_derinligi }}')" style="padding:3px 10px; font-size:7.5pt; background:#27ae60; color:white; border:none; border-radius:3px; cursor:pointer;">🖨️ Yazdır</button>
+            {% else %}
+            <button onclick="downloadFoyPDF({{ loop.index }}, '{{ data.kuyu_no }}', '{{ data.deney_derinligi }}')" style="padding:3px 10px; font-size:7.5pt; background:#e74c3c; color:white; border:none; border-radius:3px; cursor:pointer;">📥 PDF İndir</button>
+            {% endif %}
         </div>
         <!-- ===== BAŞLIK ===== -->
         <div class="header-section">
