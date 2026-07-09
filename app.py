@@ -27,8 +27,9 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 def basinc_dagilimi(max_bar):
     """
     Deney basıncı dağılımını hesaplar.
-    - ≤ 20 bar: 1'er bar artış (0, 1, 2, ..., max_bar)
-    - > 20 bar: 20 kademeye sığdırılır — önce 1'er, sonra 2'şer artış
+    - ≤ 20 bar: 1'er bar artış (0, 1, 2, ..., max_bar) → max 21 satır
+    - > 20 bar: Her zaman 21 satır (20 kademe). Önce 1'er, sonda 2'şer artış.
+      Örnek: 22 bar → 0,1,...,18,20,22  |  25 bar → 0,1,...,15,17,19,21,23,25
     """
     max_bar = int(max_bar)
     
@@ -36,31 +37,25 @@ def basinc_dagilimi(max_bar):
         # 1'er bar artış, max_bar+1 satır
         return [i for i in range(max_bar + 1)]
     else:
-        # 20 kademeye sığdır (kademe 0 dahil = 20 satır, 19 artış)
-        # a adet 1-bar + b adet 2-bar = 19 adım, toplam = a + 2b = max_bar
-        # a + b = 19 → a = 38 - max_bar, b = max_bar - 19
-        b = max_bar - 19  # 2-bar adım sayısı
-        a = 19 - b        # 1-bar adım sayısı
+        # Her zaman 21 satır (kademe 0 dahil = 21 satır, 20 adım)
+        # a adet 1-bar + b adet 2-bar = 20 adım, toplam = a + 2b = max_bar
+        # a + b = 20 → a = 40 - max_bar, b = max_bar - 20
+        b = max_bar - 20  # 2-bar adım sayısı
+        a = 20 - b        # 1-bar adım sayısı
         
-        # Eğer a < 0 ise, 3'er bar adımlar da gerekir
         if a < 0:
-            # 3-bar adımlar ekle: a1 + a2 + a3 = 19, a1 + 2*a2 + 3*a3 = max_bar
-            # Basit çözüm: mümkün olduğunca 2-bar, kalanı 3-bar
+            # Çok yüksek bar değerleri: orantılı dağılım
             basinc = [0]
             current = 0
-            for step in range(19):
-                remaining_steps = 19 - step - 1
+            for step in range(20):
+                remaining_steps = 20 - step - 1
                 remaining_bar = max_bar - current
                 if remaining_steps == 0:
                     current = max_bar
                 else:
-                    increment = remaining_bar / (remaining_steps + 1)
-                    if increment <= 2:
-                        current += int(round(increment))
-                    else:
-                        current += int(round(increment))
+                    current += int(round(remaining_bar / (remaining_steps + 1)))
                 basinc.append(current)
-            basinc[-1] = max_bar  # Son değer tam olsun
+            basinc[-1] = max_bar
             return basinc
         
         basinc = [0]
@@ -99,6 +94,74 @@ HACIM_DUZ_DEGER = [0, 1, 1, 2, 3, 4, 5, 6, 6, 7, 8, 9, 8, 7, 8, 10]
 MEBRAN_HACIM = [15, 80, 140, 200, 250, 300, 350, 400, 480, 650]
 MEBRAN_BASINC = [0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25]
 
+# BAR → Elastisite Modülü tablosu (bar: (base_value, tolerance))
+ELASTISITE_TABLE = {
+    5: (50, 10), 6: (60, 10), 7: (70, 10), 8: (80, 10),
+    9: (90, 10), 10: (100, 10), 11: (110, 10), 12: (120, 10),
+    13: (130, 10), 14: (150, 20), 15: (170, 20),
+    16: (200, 30), 17: (230, 30), 18: (260, 30),
+    19: (300, 40), 20: (340, 40), 21: (380, 40), 22: (420, 40), 23: (460, 40),
+    24: (500, 50), 25: (550, 50), 26: (600, 50), 27: (650, 50),
+    28: (700, 50), 29: (750, 50), 30: (800, 50),
+}
+
+
+def get_elastisite_modulu(max_bar):
+    """BAR-Elastisite tablosundan Elastisite Modülü değerini döndürür."""
+    max_bar = int(max_bar)
+    if max_bar in ELASTISITE_TABLE:
+        base, tolerance = ELASTISITE_TABLE[max_bar]
+        # Tolerans aralığında rastgele değer
+        return base + random.randint(-tolerance, tolerance)
+    elif max_bar < 5:
+        # 5 altı için en düşük değeri kullan
+        base, tolerance = ELASTISITE_TABLE[5]
+        return base + random.randint(-tolerance, tolerance)
+    else:
+        # 30 üstü için en yüksek değeri kullan
+        base, tolerance = ELASTISITE_TABLE[30]
+        return base + random.randint(-tolerance, tolerance)
+
+
+def get_pi_pf_indices(max_bar, n):
+    """
+    Max bar değerine göre Pi ve Pf indekslerini belirler.
+    n = son kademe indeksi (kademe_sayisi - 1)
+    
+    Kurallar (0 noktasından itibaren sayılır, 0 = 1. nokta):
+    - 4-5-6 bar: Pi = index 2, Pf = n-1 (sondan bir önceki)
+    - 7-8 bar: Pi = index 3, Pf = n-1 (sondan bir önceki)
+    - 9-10-11-12 bar: Pi = index 3, Pf = n-2 (sondan 3. nokta)
+    - 13-14-15-16-17 bar: Pi = index 3, Pf = n-3 (sondan 4. nokta)
+    - 18-30 bar: Pi = index 3, Pf = n-5 (sondan 6. nokta)
+    """
+    max_bar = int(max_bar)
+    
+    if max_bar <= 6:
+        idx_i = min(2, n)
+        idx_f = n - 1
+    elif max_bar <= 8:
+        idx_i = min(3, n)
+        idx_f = n - 1
+    elif max_bar <= 12:
+        idx_i = min(3, n)
+        idx_f = n - 2
+    elif max_bar <= 17:
+        idx_i = min(3, n)
+        idx_f = n - 3
+    else:  # 18-30
+        idx_i = min(3, n)
+        # Pf sondan 6. nokta ±1 esneklik
+        offset = random.choice([-1, 0, 0, 0, 1])  # genelde 6, bazen 5 veya 7
+        idx_f = n - 5 + offset
+    
+    # Güvenlik: idx_f en az idx_i + 1 olmalı
+    idx_f = max(idx_f, idx_i + 1)
+    # idx_f son noktayı geçmemeli
+    idx_f = min(idx_f, n)
+    
+    return idx_i, idx_f
+
 
 def hesapla_hidrostatik_basinc(deney_basinci, manometre_yuk):
     """Hidrostatik Basınç = Deney Basıncı + Manometre Yüksekliği / 10"""
@@ -115,21 +178,20 @@ def hesapla_mebran_duzeltmesi(duzeltilmis_hacim):
     return interpolate(duzeltilmis_hacim, MEBRAN_HACIM, MEBRAN_BASINC)
 
 
-def hacim_olcer_verisi(kademe_sayisi, sifir_vol):
+def hacim_olcer_verisi(kademe_sayisi, sifir_vol, max_bar=20):
     """
     Hacim ölçer okuması - presiyometre S-eğrisi şeklinde veri üretir.
     3 fazlı: 
-      Faz 1 (kademe 0 → 3): Dik yükseliş (ilk temas - hacmin ~60%'ı)
-      Faz 2 (kademe 3 → n-2): Yavaş lineer artış (psödo-elastik bölge, ~25%)
-      Faz 3 (kademe n-2 → n): Hızlı artış (plastik bölge, ~15%)
+      Faz 1 (kademe 0 → idx_pi): Dik yükseliş (ilk temas - hacmin ~60%'ı)
+      Faz 2 (idx_pi → idx_pf): Yavaş lineer artış (psödo-elastik bölge, ~25%)
+      Faz 3 (idx_pf → n): Hızlı artış (plastik bölge, ~15%)
     """
     sifir_vol = int(sifir_vol)
     if kademe_sayisi <= 1:
         return [0]
     
     n = kademe_sayisi - 1
-    idx_pi = min(3, n)       # Pi noktası (faz 1 sonu)
-    idx_pf = max(n - 1, idx_pi + 1)  # Pf noktası (faz 2 sonu)
+    idx_pi, idx_pf = get_pi_pf_indices(max_bar, n)
     
     # Faz dağılımları
     vol_faz1 = sifir_vol * 0.60   # İlk fazda toplam hacmin %60'ına ulaş
@@ -159,15 +221,20 @@ def hacim_olcer_verisi(kademe_sayisi, sifir_vol):
             val = max(values[-1] + 2, val + noise)
             values.append(min(val, int(vol_faz2)))
     
-    # Faz 3: Hızlı artış (idx_pf → n)
+    # Faz 3: Hızlı artış - net yukarı kıvrım (idx_pf → n)
     faz3_steps = n - idx_pf
     if faz3_steps > 0:
         faz3_start = values[-1]
         faz3_range = vol_faz3 - faz3_start
         for i in range(1, faz3_steps + 1):
             ratio = i / faz3_steps
-            # Hızlanan eğri
-            val = int(faz3_start + faz3_range * (ratio ** 0.5))
+            # Yukarı kıvrım: üssel eğri ile belirgin S-şekli
+            # Yüksek bar değerlerinde daha belirgin kıvrım
+            if max_bar >= 15:
+                curve_val = ratio ** 0.35  # Daha agresif kıvrım
+            else:
+                curve_val = ratio ** 0.5
+            val = int(faz3_start + faz3_range * curve_val)
             val = max(values[-1] + 5, val)
             values.append(min(val, sifir_vol))
     
@@ -199,6 +266,16 @@ def rapor():
         save_path = os.path.join(app.config['UPLOAD_FOLDER'], safe_name)
         logo_file.save(save_path)
         logo_url = f'/static/uploads/{safe_name}'
+
+    # İmza yükleme (opsiyonel)
+    imza_url = ''
+    imza_file = request.files.get('imza_dosya')
+    if imza_file and imza_file.filename:
+        ext = os.path.splitext(imza_file.filename)[1]
+        safe_name = f"imza_{uuid.uuid4().hex[:8]}{ext}"
+        save_path = os.path.join(app.config['UPLOAD_FOLDER'], safe_name)
+        imza_file.save(save_path)
+        imza_url = f'/static/uploads/{safe_name}'
 
     # Firma bilgisi
     firma_adi = request.form.get('firma_adi', 'HAN İNŞAAT & MÜHENDİSLİK')
@@ -247,7 +324,7 @@ def rapor():
             
             # Hacim ölçer verisi üret
             sifir_vol = int(genel.get('sifir_vol_hacim', 535))
-            hacim_listesi = hacim_olcer_verisi(kademe_sayisi, sifir_vol)
+            hacim_listesi = hacim_olcer_verisi(kademe_sayisi, sifir_vol, max_basinc)
             
             # Manometre yüksekliği
             manometre_yuk = float(genel.get('manometre_yuksekligi', 0.60))
@@ -284,19 +361,31 @@ def rapor():
                     'duz_basinc': f"{duz_basinc:.2f}",
                 })
             
+            # Tablo her zaman 21 satır olsun (kademe 0-20)
+            SABIT_SATIR_SAYISI = 21
+            while len(rapor_data['tablo']) < SABIT_SATIR_SAYISI:
+                rapor_data['tablo'].append({
+                    'kademe': len(rapor_data['tablo']),
+                    'basinc': '',
+                    'hacim': '',
+                    'hidrost': '',
+                    'hacim_duz': '',
+                    'duz_hacim': '',
+                    'mebran_duz': '',
+                    'duz_basinc': '',
+                })
+            
             # ===== BELİRLENEN DEĞERLER HESAPLA =====
             n = kademe_sayisi - 1  # son kademe indeksi
             
             # Limit Basınç = son kademenin Düzeltilmiş Basıncı
             limit_basinc = float(rapor_data['tablo'][n]['duz_basinc'])
             
-            # Pi, Vi = Kademe 3 (elastik bölge başlangıcı)
-            idx_i = min(3, n)
+            # Pi, Pf indekslerini bar seviyesine göre belirle
+            idx_i, idx_f = get_pi_pf_indices(max_basinc, n)
+            
             pi = float(rapor_data['tablo'][idx_i]['duz_basinc'])
             vi = rapor_data['tablo'][idx_i]['duz_hacim']
-            
-            # Pf, Vf = Sondan 2. kademe (elastik bölge sonu)
-            idx_f = max(n - 1, idx_i + 1)
             pf = float(rapor_data['tablo'][idx_f]['duz_basinc'])
             vf = rapor_data['tablo'][idx_f]['duz_hacim']
             
@@ -306,11 +395,8 @@ def rapor():
             vm = (vi + vf) / 2.0
             v0 = sifir_vol
             
-            # Elastisite Modülü: EM = 2.66 × (V₀ + Vm) × ΔP / ΔV
-            if delta_v != 0:
-                em = 2.66 * (v0 + vm) * delta_p / delta_v
-            else:
-                em = 0
+            # Elastisite Modülü: BAR-Elastisite tablosundan al
+            em = get_elastisite_modulu(max_basinc)
             
             # Net Limit Basınç = PL* - Pi
             net_limit = limit_basinc - pi
@@ -330,6 +416,7 @@ def rapor():
                 'net_limit': f"{net_limit:.2f}",
                 'e_pl': f"{e_pl:.2f}",
             }
+            rapor_data['max_basinc'] = max_basinc
             
             raporlar.append(rapor_data)
 
@@ -339,6 +426,7 @@ def rapor():
                            mode=os.environ.get('DEPLOY_MODE', 'desktop'),
                            firma_adi=firma_adi,
                            logo_url=logo_url,
+                           imza_url=imza_url,
                            footer=footer)
 
 
