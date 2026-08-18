@@ -151,9 +151,9 @@ def get_pi_pf_indices(max_bar, n):
         idx_f = n - 3
     else:  # 18-30
         idx_i = min(3, n)
-        # Pf sondan 6. nokta ±1 esneklik
-        offset = random.choice([-1, 0, 0, 0, 1])  # genelde 6, bazen 5 veya 7
-        idx_f = n - 5 + offset
+        # Pf sondan 3-5. nokta arası
+        offset = random.choice([0, 0, 1, 1, 2])  # genelde sondan 3-4, bazen 5
+        idx_f = n - 3 - offset
     
     # Güvenlik: idx_f en az idx_i + 1 olmalı
     idx_f = max(idx_f, idx_i + 1)
@@ -194,8 +194,9 @@ def hacim_olcer_verisi(kademe_sayisi, sifir_vol, max_bar=20):
     idx_pi, idx_pf = get_pi_pf_indices(max_bar, n)
     
     # Faz dağılımları
-    vol_faz1 = sifir_vol * 0.60   # İlk fazda toplam hacmin %60'ına ulaş
-    vol_faz2 = sifir_vol * 0.85   # İkinci faz sonunda %85
+    vol_faz1 = sifir_vol * 0.55   # İlk fazda toplam hacmin %55'ine ulaş
+    faz2_toplam = random.randint(40, 75)  # Psödo-elastik bölge: max 75 cm³ artış
+    vol_faz2 = vol_faz1 + faz2_toplam
     vol_faz3 = sifir_vol           # Son faz sonunda %100
     
     values = [0]
@@ -203,39 +204,33 @@ def hacim_olcer_verisi(kademe_sayisi, sifir_vol, max_bar=20):
     # Faz 1: Dik yükseliş (0 → idx_pi)
     for i in range(1, idx_pi + 1):
         ratio = i / idx_pi
-        # Hızlı başlayıp yavaşlayan eğri
         val = int(vol_faz1 * (1 - (1 - ratio) ** 2))
         noise = random.randint(-5, 5)
         val = max(values[-1] + 10, val + noise)
         values.append(min(val, int(vol_faz1)))
     
-    # Faz 2: Yavaş lineer artış (idx_pi → idx_pf)
+    # Faz 2: Neredeyse yatay artış (idx_pi → idx_pf), toplam 50-100 cm³
     faz2_steps = idx_pf - idx_pi
     if faz2_steps > 0:
         faz2_start = values[-1]
-        faz2_range = vol_faz2 - faz2_start
+        faz2_range = faz2_toplam
         for i in range(1, faz2_steps + 1):
             ratio = i / faz2_steps
             val = int(faz2_start + faz2_range * ratio)
-            noise = random.randint(-3, 3)
-            val = max(values[-1] + 2, val + noise)
+            noise = random.randint(-2, 2)
+            val = max(values[-1] + 1, val + noise)
             values.append(min(val, int(vol_faz2)))
     
-    # Faz 3: Hızlı artış - net yukarı kıvrım (idx_pf → n)
+    # Faz 3: Pf sonrası ivmelenen artış (sona doğru belirgin dikleşme)
     faz3_steps = n - idx_pf
     if faz3_steps > 0:
         faz3_start = values[-1]
         faz3_range = vol_faz3 - faz3_start
         for i in range(1, faz3_steps + 1):
             ratio = i / faz3_steps
-            # Yukarı kıvrım: üssel eğri ile belirgin S-şekli
-            # Yüksek bar değerlerinde daha belirgin kıvrım
-            if max_bar >= 15:
-                curve_val = ratio ** 0.35  # Daha agresif kıvrım
-            else:
-                curve_val = ratio ** 0.5
+            curve_val = ratio ** 1.5
             val = int(faz3_start + faz3_range * curve_val)
-            val = max(values[-1] + 5, val)
+            val = max(values[-1] + 10, val)
             values.append(min(val, sifir_vol))
     
     # Son değer tam sifir_vol olsun
@@ -310,6 +305,14 @@ def rapor():
         derinlikler_str = request.form.get(f'kuyu_{i}_derinlikler', '')
         derinlikler = [d.strip() for d in derinlikler_str.split(',') if d.strip()]
 
+        # Derinlik arttıkça EM artmalı: her derinlik için EM önceden hesapla
+        em_values = []
+        for idx, derinlik in enumerate(derinlikler):
+            max_basinc = int(request.form.get(f'kuyu_{i}_basinc_{idx}', 20))
+            em_values.append(get_elastisite_modulu(max_basinc))
+        # Aynı kuyu içinde sırala: sığdan derine artan EM
+        em_values.sort()
+
         for idx, derinlik in enumerate(derinlikler):
             rapor_data = dict(genel)
             rapor_data['kuyu_no'] = kuyu_adi
@@ -365,7 +368,7 @@ def rapor():
             SABIT_SATIR_SAYISI = 21
             while len(rapor_data['tablo']) < SABIT_SATIR_SAYISI:
                 rapor_data['tablo'].append({
-                    'kademe': len(rapor_data['tablo']),
+                    'kademe': '',
                     'basinc': '',
                     'hacim': '',
                     'hidrost': '',
@@ -395,8 +398,8 @@ def rapor():
             vm = (vi + vf) / 2.0
             v0 = sifir_vol
             
-            # Elastisite Modülü: BAR-Elastisite tablosundan al
-            em = get_elastisite_modulu(max_basinc)
+            # Elastisite Modülü: derinlik arttıkça artan sıralı değer
+            em = em_values[idx]
             
             # Net Limit Basınç = PL* - Pi
             net_limit = limit_basinc - pi
