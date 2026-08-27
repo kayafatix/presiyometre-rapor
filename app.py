@@ -1,11 +1,16 @@
 """
 Presiyometre Deney Raporu - HTML/PDF Web Uygulaması
 """
-from flask import Flask, render_template, request, url_for
+from flask import Flask, render_template, request, url_for, jsonify, send_from_directory, abort
 import os
 import sys
 import uuid
 import random
+import json
+import shutil
+import datetime
+import subprocess
+import tempfile
 
 
 def resource_path(relative_path):
@@ -22,6 +27,48 @@ app = Flask(__name__,
             static_folder=resource_path('static'))
 app.config['UPLOAD_FOLDER'] = os.path.join(resource_path('static'), 'uploads')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+
+def app_base_dir():
+    """Veritabanı gibi kalıcı dosyalar için uygulamanın bulunduğu klasör."""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+DB_DIR = os.path.join(app_base_dir(), 'database')
+os.makedirs(DB_DIR, exist_ok=True)
+
+
+def sanitize_name(s):
+    """Dosya/klasör adı için güvenli hale getirir."""
+    s = str(s or '').strip()
+    for ch in '\\/:*?"<>|':
+        s = s.replace(ch, '-')
+    s = s.replace('..', '.').strip('. ')
+    return s or 'Adsiz'
+
+
+def static_url_to_path(url):
+    """/static/... web yolunu dosya sistemi yoluna çevirir."""
+    if not url or not url.startswith('/static/'):
+        return None
+    rel = url[len('/static/'):]
+    return os.path.join(resource_path('static'), rel)
+
+
+def copy_media_to_db(folder, url, prefix):
+    """Logo/imza dosyasını DB klasörüne kopyalar, kopyanın adını döndürür."""
+    src = static_url_to_path(url)
+    if src and os.path.isfile(src):
+        ext = os.path.splitext(src)[1] or '.png'
+        dst_name = prefix + ext
+        try:
+            shutil.copyfile(src, os.path.join(folder, dst_name))
+            return dst_name
+        except OSError:
+            return None
+    return None
 
 
 def basinc_dagilimi(max_bar):
@@ -112,15 +159,15 @@ def get_elastisite_modulu(max_bar):
     if max_bar in ELASTISITE_TABLE:
         base, tolerance = ELASTISITE_TABLE[max_bar]
         # Tolerans aralığında rastgele değer
-        return base + random.randint(-tolerance, tolerance)
+        return round(base + random.uniform(-tolerance, tolerance), 2)
     elif max_bar < 5:
         # 5 altı için en düşük değeri kullan
         base, tolerance = ELASTISITE_TABLE[5]
-        return base + random.randint(-tolerance, tolerance)
+        return round(base + random.uniform(-tolerance, tolerance), 2)
     else:
         # 30 üstü için en yüksek değeri kullan
         base, tolerance = ELASTISITE_TABLE[30]
-        return base + random.randint(-tolerance, tolerance)
+        return round(base + random.uniform(-tolerance, tolerance), 2)
 
 
 def get_pi_pf_indices(max_bar, n):
@@ -149,11 +196,9 @@ def get_pi_pf_indices(max_bar, n):
     elif max_bar <= 17:
         idx_i = min(3, n)
         idx_f = n - 3
-    else:  # 18-30
+    else:  # 18+
         idx_i = min(3, n)
-        # Pf sondan 3-5. nokta arası
-        offset = random.choice([0, 0, 1, 1, 2])  # genelde sondan 3-4, bazen 5
-        idx_f = n - 3 - offset
+        idx_f = n - 5
     
     # Güvenlik: idx_f en az idx_i + 1 olmalı
     idx_f = max(idx_f, idx_i + 1)
@@ -178,7 +223,7 @@ def hesapla_mebran_duzeltmesi(duzeltilmis_hacim):
     return interpolate(duzeltilmis_hacim, MEBRAN_HACIM, MEBRAN_BASINC)
 
 
-def hacim_olcer_verisi(kademe_sayisi, sifir_vol, max_bar=20):
+def hacim_olcer_verisi(kademe_sayisi, sifir_vol, max_bar=20, rapor_tipi='toprak', depth_idx=0, vi_base=None, dv_kaya=None):
     """
     Hacim ölçer okuması - presiyometre S-eğrisi şeklinde veri üretir.
     3 fazlı: 
@@ -193,10 +238,51 @@ def hacim_olcer_verisi(kademe_sayisi, sifir_vol, max_bar=20):
     n = kademe_sayisi - 1
     idx_pi, idx_pf = get_pi_pf_indices(max_bar, n)
     
+    if rapor_tipi == 'kaya':
+        # Kaya: 535'e ulaşılmaz. Pi (2 bar) noktasında Vi; oradan sona kadar
+        # membran genişlemesi kadar küçük (0-3) artışlarla, hemen hemen paralel.
+        idx_pi = min(2, n)
+        vi = int(vi_base) if vi_base else random.randint(180, 250)
+        dv = int(dv_kaya) if dv_kaya else random.randint(30, 50)  # ΔV küçük → yüksek EM
+        values = [0]
+        # İlk temas (dik yükseliş): 0 → Vi, ilk idx_pi kademede
+        for k in range(1, idx_pi + 1):
+            ratio = k / idx_pi
+            val = int(vi * (1 - (1 - ratio) ** 2))
+            val = max(values[-1] + 5, val + random.randint(-3, 3))
+            values.append(min(val, vi))
+        if len(values) > idx_pi:
+            values[idx_pi] = vi   # 2 bar'da tam Vi
+        # Psödo-elastik bölge: küçük (0-3) artışlar, toplam ~dv
+        steps = n - idx_pi
+        if steps > 0:
+            remaining = dv
+            cur = vi
+            for j in range(steps):
+                left = steps - j
+                inc = int(round(remaining / left + random.uniform(-0.7, 0.7)))
+                inc = max(0, min(3, inc))
+                remaining -= inc
+                cur += inc
+                values.append(cur)
+        while len(values) < kademe_sayisi:
+            values.append(values[-1])
+        return values[:kademe_sayisi]
+    
     # Faz dağılımları
-    vol_faz1 = sifir_vol * 0.55   # İlk fazda toplam hacmin %55'ine ulaş
-    faz2_toplam = random.randint(40, 75)  # Psödo-elastik bölge: max 75 cm³ artış
+    # Faz1 oranı: yüksek basınçta biraz düşür ki hem ΔV (faz2) hem faz3 yükselişi için yer kalsın
+    faz1_ratio = 0.55 if max_bar <= 20 else max(0.40, 0.55 - (max_bar - 20) * 0.002)
+    vol_faz1 = sifir_vol * faz1_ratio
+    # Psödo-elastik ΔV: yüksek basınçta orantılı büyür ki EM aşırı yükselmesin
+    faz2_base = random.randint(40, 75)
+    scale = (max_bar / 20.0) ** 0.85 if max_bar > 20 else 1.0
+    faz2_toplam = int(faz2_base * scale)
     vol_faz2 = vol_faz1 + faz2_toplam
+    # Faz 3 (plastik yükseliş) belirgin kalsın: plato tavanı %68 (faz3 ≥ ~%32)
+    max_faz2 = int(sifir_vol * 0.68)
+    if vol_faz2 > max_faz2:
+        vol_faz2 = max_faz2
+        faz2_toplam = vol_faz2 - int(vol_faz1)
     vol_faz3 = sifir_vol           # Son faz sonunda %100
     
     values = [0]
@@ -274,6 +360,7 @@ def rapor():
 
     # Firma bilgisi
     firma_adi = request.form.get('firma_adi', 'HAN İNŞAAT & MÜHENDİSLİK')
+    rapor_tipi = request.form.get('rapor_tipi', 'toprak')
 
     # Footer bilgileri
     footer = {
@@ -304,14 +391,40 @@ def rapor():
         kuyu_adi = request.form.get(f'kuyu_{i}_adi', f'SK-{i}')
         derinlikler_str = request.form.get(f'kuyu_{i}_derinlikler', '')
         derinlikler = [d.strip() for d in derinlikler_str.split(',') if d.strip()]
+        n_der = len(derinlikler)
+        vi_list_kaya = []
+        dv_list_kaya = []
 
-        # Derinlik arttıkça EM artmalı: her derinlik için EM önceden hesapla
-        em_values = []
-        for idx, derinlik in enumerate(derinlikler):
-            max_basinc = int(request.form.get(f'kuyu_{i}_basinc_{idx}', 20))
-            em_values.append(get_elastisite_modulu(max_basinc))
-        # Aynı kuyu içinde sırala: sığdan derine artan EM
-        em_values.sort()
+        if rapor_tipi == 'kaya':
+            # Başlangıç hacmi: metre arttıkça 1-5 azalan (kümülatif)
+            _kv = random.randint(180, 250)
+            vi_list_kaya = []
+            for _di in range(n_der):
+                if _di > 0:
+                    _kv -= random.randint(1, 5)
+                vi_list_kaya.append(max(120, _kv))
+            # Hedef EM: manuel girilmişse o, yoksa derinlikle artan otomatik (850→~1800)
+            em_target_list = []
+            for _di in range(n_der):
+                _v = request.form.get(f'kuyu_{i}_em_{_di}', '').strip()
+                em_target_list.append(float(_v) if _v else None)
+            _auto = [850 + (1800 - 850) * _di / (n_der - 1) for _di in range(n_der)] if n_der > 1 else [1200]
+            em_target_list = [em_target_list[_di] if em_target_list[_di] else _auto[_di] for _di in range(n_der)]
+            # ΔV'yi hedef EM'den geri hesapla (eğri görsel tutarlı olsun)
+            dv_list_kaya = []
+            for _di in range(n_der):
+                _mb = int(request.form.get(f'kuyu_{i}_basinc_{_di}', 20))
+                _dP = max(1.0, _mb - 3.0)
+                _emt = em_target_list[_di]
+                _dvv = 2.66 * _dP * (535 + vi_list_kaya[_di]) / (_emt - 1.33 * _dP) if _emt > 1.33 * _dP else 40
+                dv_list_kaya.append(max(6, int(round(_dvv))))
+        else:
+            # Toprak: EM tablo bazlı (bar→EM ± tolerans), derinlikle artan (sıralı)
+            em_values = []
+            for _di in range(n_der):
+                _mb = int(request.form.get(f'kuyu_{i}_basinc_{_di}', 20))
+                em_values.append(get_elastisite_modulu(_mb))
+            em_values.sort()
 
         for idx, derinlik in enumerate(derinlikler):
             rapor_data = dict(genel)
@@ -327,7 +440,9 @@ def rapor():
             
             # Hacim ölçer verisi üret
             sifir_vol = int(genel.get('sifir_vol_hacim', 535))
-            hacim_listesi = hacim_olcer_verisi(kademe_sayisi, sifir_vol, max_basinc)
+            hacim_listesi = hacim_olcer_verisi(kademe_sayisi, sifir_vol, max_basinc, rapor_tipi, idx,
+                                               vi_list_kaya[idx] if idx < len(vi_list_kaya) else None,
+                                               dv_list_kaya[idx] if idx < len(dv_list_kaya) else None)
             
             # Manometre yüksekliği
             manometre_yuk = float(genel.get('manometre_yuksekligi', 0.60))
@@ -364,6 +479,18 @@ def rapor():
                     'duz_basinc': f"{duz_basinc:.2f}",
                 })
             
+            # Sağ grafikteki son 3 noktayı aynı doğruya hizala (ortadaki noktayı taşı)
+            t = rapor_data['tablo']
+            if kademe_sayisi >= 3:
+                ia, ib, ic = kademe_sayisi - 3, kademe_sayisi - 2, kademe_sayisi - 1
+                pa = float(t[ia]['duz_basinc']); va = t[ia]['duz_hacim']
+                pc = float(t[ic]['duz_basinc']); vc = t[ic]['duz_hacim']
+                pb = float(t[ib]['duz_basinc'])
+                if pc != pa:
+                    vb = int(round(va + (vc - va) * (pb - pa) / (pc - pa)))
+                    t[ib]['duz_hacim'] = vb
+                    t[ib]['hacim'] = vb + t[ib]['hacim_duz']
+            
             # Tablo her zaman 21 satır olsun (kademe 0-20)
             SABIT_SATIR_SAYISI = 21
             while len(rapor_data['tablo']) < SABIT_SATIR_SAYISI:
@@ -386,6 +513,9 @@ def rapor():
             
             # Pi, Pf indekslerini bar seviyesine göre belirle
             idx_i, idx_f = get_pi_pf_indices(max_basinc, n)
+            if rapor_tipi == 'kaya':
+                idx_i = min(2, n)   # Kaya: Pi = 2 bar (2. sıradaki), değiştirilebilir
+                idx_f = n           # Kaya: Pf = son nokta
             
             pi = float(rapor_data['tablo'][idx_i]['duz_basinc'])
             vi = rapor_data['tablo'][idx_i]['duz_hacim']
@@ -398,8 +528,11 @@ def rapor():
             vm = (vi + vf) / 2.0
             v0 = sifir_vol
             
-            # Elastisite Modülü: derinlik arttıkça artan sıralı değer
-            em = em_values[idx]
+            # Elastisite Modülü: toprak → tablo (bar→EM), kaya → manuel/otomatik hedef
+            if rapor_tipi == 'kaya':
+                em = em_target_list[idx]
+            else:
+                em = em_values[idx]
             
             # Net Limit Basınç = PL* - Pi
             net_limit = limit_basinc - pi
@@ -420,6 +553,7 @@ def rapor():
                 'e_pl': f"{e_pl:.2f}",
             }
             rapor_data['max_basinc'] = max_basinc
+            rapor_data['rapor_tipi'] = rapor_tipi
             
             raporlar.append(rapor_data)
 
@@ -431,6 +565,245 @@ def rapor():
                            logo_url=logo_url,
                            imza_url=imza_url,
                            footer=footer)
+
+
+@app.route('/db_save', methods=['POST'])
+def db_save():
+    """Yazdır/Kaydet anında gönderilen föyleri veritabanına yazar."""
+    payload = request.get_json(silent=True) or {}
+    globals_ = payload.get('globals', {})
+    foys = payload.get('foys', [])
+    saved = 0
+    names = []
+    for foy in foys:
+        proje = sanitize_name(foy.get('proje_adi'))
+        kuyu = sanitize_name(foy.get('kuyu_no'))
+        derinlik = sanitize_name(foy.get('deney_derinligi'))
+        folder = os.path.join(DB_DIR, proje)
+        os.makedirs(folder, exist_ok=True)
+        # Logo/imza görsellerini DB klasörüne kopyala (yollar kalıcı olsun)
+        g = dict(globals_)
+        logo_name = copy_media_to_db(folder, globals_.get('logo_url'), 'logo')
+        if logo_name:
+            g['logo_url'] = '/db_media/{}/{}'.format(proje, logo_name)
+        imza_name = copy_media_to_db(folder, globals_.get('imza_url'), 'imza')
+        if imza_name:
+            g['imza_url'] = '/db_media/{}/{}'.format(proje, imza_name)
+        # Dosya adı: Proje_Kuyu_Derinlikm_tarih ; aynı ad varsa sona artan numara ekle
+        today_str = datetime.date.today().strftime('%d-%m-%Y')
+        base = '{}_{}_{}m_{}'.format(proje, kuyu, derinlik, today_str)
+        name = base
+        suffix = 0
+        n = 1
+        while os.path.exists(os.path.join(folder, name + '.json')):
+            name = '{}_{}'.format(base, n)
+            suffix = n
+            n += 1
+        with open(os.path.join(folder, name + '.json'), 'w', encoding='utf-8') as f:
+            json.dump({'globals': g, 'data': foy}, f, ensure_ascii=False, indent=2)
+        names.append(suffix)
+        saved += 1
+    return jsonify({'ok': True, 'saved': saved, 'names': names})
+
+
+@app.route('/db_list')
+def db_list():
+    """Kayıtlı proje klasörlerini ve föyleri listeler."""
+    projects = []
+    if os.path.isdir(DB_DIR):
+        for proje in sorted(os.listdir(DB_DIR)):
+            pdir = os.path.join(DB_DIR, proje)
+            if not os.path.isdir(pdir):
+                continue
+            foys = sorted(fn for fn in os.listdir(pdir) if fn.endswith('.json'))
+            if foys:
+                projects.append({'proje': proje, 'foys': foys})
+    return jsonify({'projects': projects})
+
+
+@app.route('/db_media/<path:proje>/<path:filename>')
+def db_media(proje, filename):
+    """DB klasöründeki logo/imza görsellerini sunar."""
+    proje = sanitize_name(proje)
+    filename = os.path.basename(filename)
+    folder = os.path.join(DB_DIR, proje)
+    if not os.path.isfile(os.path.join(folder, filename)):
+        abort(404)
+    return send_from_directory(folder, filename)
+
+
+@app.route('/db_open', methods=['POST'])
+def db_open():
+    """Seçili kayıtlı föyleri yükleyip rapor sayfasını yeniden oluşturur."""
+    proje = sanitize_name(request.form.get('proje', ''))
+    secili = request.form.getlist('foylar')
+    pdir = os.path.join(DB_DIR, proje)
+    raporlar = []
+    globals_ = {}
+    if os.path.isdir(pdir):
+        if secili:
+            files = [os.path.basename(fn) for fn in secili]
+        else:
+            files = sorted(fn for fn in os.listdir(pdir) if fn.endswith('.json'))
+        for fn in files:
+            if not fn.endswith('.json'):
+                continue
+            fp = os.path.join(pdir, fn)
+            if os.path.isfile(fp):
+                with open(fp, 'r', encoding='utf-8') as f:
+                    obj = json.load(f)
+                raporlar.append(obj.get('data', {}))
+                if not globals_:
+                    globals_ = obj.get('globals', {})
+    return render_template('rapor.html',
+                           raporlar=raporlar,
+                           toplam=len(raporlar),
+                           mode=os.environ.get('DEPLOY_MODE', 'desktop'),
+                           firma_adi=globals_.get('firma_adi', 'HAN İNŞAAT & MÜHENDİSLİK'),
+                           logo_url=globals_.get('logo_url', '/static/logo.png'),
+                           imza_url=globals_.get('imza_url', ''),
+                           footer=globals_.get('footer', {}))
+
+
+# Tarayıcı (Edge/Chrome) ile native "piksel-mükemmel" PDF üretimi için geçici sayfa deposu
+PRINT_PAGES = {}
+
+
+def find_chromium():
+    """Windows'ta yüklü Edge veya Chrome çalıştırılabilirini bulur."""
+    pf = os.environ.get('ProgramFiles', r'C:\Program Files')
+    pfx = os.environ.get('ProgramFiles(x86)', r'C:\Program Files (x86)')
+    lad = os.environ.get('LocalAppData', '')
+    candidates = [
+        os.path.join(pfx, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+        os.path.join(pf, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+        os.path.join(pf, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+        os.path.join(pfx, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+        os.path.join(lad, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    ]
+    for c in candidates:
+        if c and os.path.isfile(c):
+            return c
+    return None
+
+
+@app.route('/print_page/<token>')
+def print_page(token):
+    """Native PDF çıktısı için hazırlanan tekil föy HTML sayfasını döndürür."""
+    html = PRINT_PAGES.get(token)
+    if html is None:
+        abort(404)
+    return html
+
+
+@app.route('/pdf_prepare', methods=['POST'])
+def pdf_prepare():
+    """İstemciden gelen tekil föy HTML'lerini geçici olarak saklar, token döndürür."""
+    data = request.get_json(force=True, silent=True) or {}
+    pages = data.get('pages', [])
+    tokens = []
+    for p in pages:
+        tok = uuid.uuid4().hex
+        PRINT_PAGES[tok] = p.get('html', '')
+        tokens.append(tok)
+    return jsonify(ok=True, tokens=tokens)
+
+
+@app.route('/pdf_export', methods=['POST'])
+def pdf_export():
+    """Her token için Edge/Chrome ile ayrı bir piksel-mükemmel PDF üretir."""
+    data = request.get_json(force=True, silent=True) or {}
+    items = data.get('items', [])
+    proje = sanitize_name(data.get('proje') or 'Rapor')
+    browser = find_chromium()
+    if not browser:
+        for it in items:
+            PRINT_PAGES.pop(it.get('token'), None)
+        return jsonify(ok=False, error='no_browser')
+
+    out_dir = os.path.join(app_base_dir(), 'PDF_Ciktilar',
+                           proje + '_' + datetime.datetime.now().strftime('%d-%m-%Y'))
+    os.makedirs(out_dir, exist_ok=True)
+    base = request.host_url  # ör: http://localhost:8777/
+    saved = []
+    for it in items:
+        tok = it.get('token')
+        name = sanitize_name(it.get('filename') or (tok or 'foy'))
+        if not tok or tok not in PRINT_PAGES:
+            continue
+        pdf_path = os.path.join(out_dir, name + '.pdf')
+        url = base + 'print_page/' + tok
+        profile = tempfile.mkdtemp(prefix='pmpdf_')
+        cmd = [
+            browser, '--headless', '--disable-gpu', '--no-first-run',
+            '--no-default-browser-check', '--user-data-dir=' + profile,
+            '--no-pdf-header-footer', '--virtual-time-budget=5000',
+            '--print-to-pdf=' + pdf_path, url,
+        ]
+        try:
+            subprocess.run(cmd, timeout=90,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if os.path.isfile(pdf_path):
+                saved.append(pdf_path)
+        except (OSError, subprocess.SubprocessError):
+            pass
+        finally:
+            shutil.rmtree(profile, ignore_errors=True)
+
+    for it in items:
+        PRINT_PAGES.pop(it.get('token'), None)
+
+    try:
+        if saved and sys.platform.startswith('win'):
+            os.startfile(out_dir)  # noqa: S606
+    except OSError:
+        pass
+
+    return jsonify(ok=True, count=len(saved), total=len(items), dir=out_dir)
+
+
+@app.route('/db_open_folder', methods=['POST'])
+def db_open_folder():
+    """Veritabanı klasörünü işletim sisteminin dosya gezgininde açar."""
+    try:
+        if sys.platform.startswith('win'):
+            os.startfile(DB_DIR)  # noqa: S606
+        elif sys.platform == 'darwin':
+            import subprocess
+            subprocess.Popen(['open', DB_DIR])
+        else:
+            import subprocess
+            subprocess.Popen(['xdg-open', DB_DIR])
+        return jsonify({'ok': True, 'path': DB_DIR})
+    except OSError:
+        return jsonify({'ok': False, 'path': DB_DIR})
+
+
+@app.route('/db_open_upload', methods=['POST'])
+def db_open_upload():
+    """Seçilen .json föy dosyalarını okuyup rapor sayfasını yeniden oluşturur."""
+    files = request.files.getlist('foydosyalari')
+    raporlar = []
+    globals_ = {}
+    for fs in files:
+        if not fs or not fs.filename:
+            continue
+        try:
+            obj = json.loads(fs.read().decode('utf-8'))
+        except (ValueError, OSError, UnicodeDecodeError):
+            continue
+        if isinstance(obj, dict):
+            raporlar.append(obj.get('data', {}))
+            if not globals_:
+                globals_ = obj.get('globals', {})
+    return render_template('rapor.html',
+                           raporlar=raporlar,
+                           toplam=len(raporlar),
+                           mode=os.environ.get('DEPLOY_MODE', 'desktop'),
+                           firma_adi=globals_.get('firma_adi', 'HAN İNŞAAT & MÜHENDİSLİK'),
+                           logo_url=globals_.get('logo_url', '/static/logo.png'),
+                           imza_url=globals_.get('imza_url', ''),
+                           footer=globals_.get('footer', {}))
 
 
 if __name__ == '__main__':
@@ -446,4 +819,4 @@ if __name__ == '__main__':
     if getattr(sys, 'frozen', False):
         threading.Timer(1.5, lambda: webbrowser.open('http://localhost:5000')).start()
 
-    app.run(debug=False, port=5000)
+    app.run(debug=False, port=5000, threaded=True)
