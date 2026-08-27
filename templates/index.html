@@ -11,7 +11,25 @@
         <h1>PRESİYOMETRE DENEY RAPORU</h1>
         <h2>Pressuremeter Test Report — Veri Girişi</h2>
 
+        <div class="tab-bar">
+            <button type="button" class="tab-btn active" data-tip="toprak" onclick="selectRaporTipi('toprak')">🌱 Yenilebilir Zemin</button>
+            <button type="button" class="tab-btn" data-tip="kaya" onclick="selectRaporTipi('kaya')">🪨 Kaya Zemin</button>
+        </div>
+
+        <div class="form-section" id="dbSection" style="border:1px solid #d6e4f0; background:#f4f9fd;">
+            <h3>📂 Kayıtlı Raporu Aç (Veritabanı)</h3>
+            <p style="font-size:0.82em; color:#7f8c8d; margin-bottom:10px; line-height:1.4;">
+                Daha önce kaydedilen bir föyü açıp düzenlemek için veritabanı klasöründen <strong>.json</strong> dosyası/dosyaları seçin. (Birden fazla seçebilirsiniz.)
+            </p>
+            <form action="/db_open_upload" method="POST" enctype="multipart/form-data" id="dbOpenForm">
+                <input type="file" name="foydosyalari" id="dbFileInput" accept=".json,application/json" multiple style="display:none;" onchange="if(this.files.length){document.getElementById('dbOpenForm').submit();}">
+                <button type="button" onclick="document.getElementById('dbFileInput').click();" style="background:linear-gradient(135deg,#2980b9,#2471a3); color:#fff; border:none; padding:10px 22px; font-size:0.95em; font-weight:600; border-radius:8px; cursor:pointer;">📂 Kayıtlı Rapor Seç (.json)</button>
+                <button type="button" onclick="dbOpenFolder()" style="margin-left:8px; background:#7f8c8d; color:#fff; border:none; padding:10px 18px; font-size:0.9em; font-weight:600; border-radius:8px; cursor:pointer;">📁 Veritabanı Klasörünü Aç</button>
+            </form>
+        </div>
+
         <form action="/rapor" method="POST" id="mainForm" enctype="multipart/form-data">
+            <input type="hidden" name="rapor_tipi" id="raporTipi" value="toprak">
             <!-- FİRMA / BAŞLIK BİLGİLERİ -->
             <div class="form-section">
                 <h3>🏢 Firma / Rapor Başlığı</h3>
@@ -137,7 +155,10 @@
                 </div>
             </div>
 
-            <button type="submit" class="btn-generate">Raporları Oluştur</button>
+            <div style="display:flex; justify-content:center; align-items:center; gap:15px; flex-wrap:wrap;">
+                <button type="submit" class="btn-generate" style="margin:30px 0 0;">Raporları Oluştur</button>
+                <button type="button" onclick="resetForm()" style="margin-top:30px; background:linear-gradient(135deg,#e74c3c,#c0392b); color:#fff; border:none; padding:14px 30px; font-size:1.1em; font-weight:bold; border-radius:8px; cursor:pointer; box-shadow:0 4px 15px rgba(231,76,60,0.3); letter-spacing:0.5px;">🗑️ Tümünü Sıfırla</button>
+            </div>
         </form>
     </div>
 
@@ -145,6 +166,11 @@
         function generateKuyuFields() {
             const sayi = parseInt(document.getElementById('kuyuSayisi').value) || 1;
             const container = document.getElementById('kuyuContainer');
+
+            // Mevcut girilen değerleri koru (kuyu sayısı değişince sıfırlanmasın)
+            const prev = {};
+            container.querySelectorAll('input[name]').forEach(el => { prev[el.name] = el.value; });
+
             container.innerHTML = '';
 
             for (let i = 1; i <= sayi; i++) {
@@ -186,12 +212,41 @@
             }
             hiddenInput.value = sayi;
 
+            // Önceki değerleri geri yükle (kuyu adı, derinlikler ve max basınç/EM)
+            for (let i = 1; i <= sayi; i++) {
+                const adiEl = container.querySelector(`[name="kuyu_${i}_adi"]`);
+                if (adiEl && prev[`kuyu_${i}_adi`] != null) adiEl.value = prev[`kuyu_${i}_adi`];
+                const dEl = document.getElementById(`derinlik_${i}`);
+                if (dEl && prev[`kuyu_${i}_derinlikler`] != null) {
+                    dEl.value = prev[`kuyu_${i}_derinlikler`];
+                    generateBasincFields(i);
+                    Object.keys(prev).forEach(name => {
+                        if (name.startsWith(`kuyu_${i}_basinc_`) || name.startsWith(`kuyu_${i}_em_`)) {
+                            const el = container.querySelector(`[name="${name}"]`);
+                            if (el) el.value = prev[name];
+                        }
+                    });
+                }
+            }
+
             updateRaporSayisi();
         }
 
         function generateBasincFields(kuyuIdx) {
             const derinlikInput = document.getElementById(`derinlik_${kuyuIdx}`);
             const container = document.getElementById(`basinc_container_${kuyuIdx}`);
+
+            // Girilen max basınç/EM değerlerini derinliğe göre koru
+            const prevByDepth = {};
+            container.querySelectorAll('.form-group').forEach(g => {
+                const lbl = g.querySelector('label');
+                const basinc = g.querySelector(`[name^="kuyu_${kuyuIdx}_basinc_"]`);
+                const em = g.querySelector(`[name^="kuyu_${kuyuIdx}_em_"]`);
+                if (lbl && basinc) {
+                    prevByDepth[lbl.textContent.trim()] = { basinc: basinc.value, em: em ? em.value : '' };
+                }
+            });
+
             const derinlikler = derinlikInput.value.split(',').filter(d => d.trim() !== '');
             
             if (derinlikler.length === 0) {
@@ -201,15 +256,20 @@
                 return;
             }
 
+            const isKaya = document.getElementById('raporTipi').value === 'kaya';
             let html = '<label style="font-size:0.85em; font-weight:600; color:#555; margin-bottom:5px; display:block;">Her derinlik için Max Deney Basıncı (bar):</label><div class="form-row" style="flex-wrap:wrap; gap:8px;">';
             
             derinlikler.forEach((d, idx) => {
                 const depth = d.trim();
+                const saved = prevByDepth[`${depth} m`];
+                const basincVal = saved ? saved.basinc : '20';
+                const emVal = saved ? saved.em : '';
                 html += `
                     <div class="form-group" style="min-width:100px; flex:0 0 auto;">
                         <label style="font-size:0.75em; text-align:center;">${depth} m</label>
                         <input type="number" name="kuyu_${kuyuIdx}_basinc_${idx}" 
-                               value="20" min="5" max="60" style="width:80px; text-align:center;" required>
+                               value="${basincVal}" min="5" max="100" style="width:80px; text-align:center;" required>
+                        <input type="number" name="kuyu_${kuyuIdx}_em_${idx}" value="${emVal}" placeholder="EM" min="0" step="1" class="kaya-em-input" style="width:80px; text-align:center; margin-top:4px; display:${isKaya ? 'block' : 'none'};" title="Elastisite Modülü (boş = otomatik)">
                     </div>`;
             });
             
@@ -239,8 +299,75 @@
             }
         }
 
-        // Sayfa yüklendiğinde ilk kuyu alanını oluştur
-        generateKuyuFields();
+        // ===== Form değerlerini oturum boyunca sakla (program kapanınca sıfırlanır) =====
+        function saveForm() {
+            const form = document.getElementById('mainForm');
+            const data = { kuyuSayisi: document.getElementById('kuyuSayisi').value, fields: {} };
+            Array.from(form.elements).forEach(el => {
+                if (!el.name || el.type === 'file' || el.type === 'submit' || el.type === 'button') return;
+                data.fields[el.name] = el.value;
+            });
+            sessionStorage.setItem('presiyometreForm', JSON.stringify(data));
+        }
+
+        function selectRaporTipi(tip) {
+            document.getElementById('raporTipi').value = tip;
+            document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.toggle('active', b.dataset.tip === tip); });
+            document.querySelectorAll('.kaya-em-input').forEach(function (el) { el.style.display = (tip === 'kaya') ? 'block' : 'none'; });
+            saveForm();
+        }
+
+        function resetForm() {
+            if (!confirm('Tüm girilen değerler silinecek. Emin misiniz?')) return;
+            sessionStorage.removeItem('presiyometreForm');
+            window.location.reload();
+        }
+
+        function restoreForm() {
+            let saved = null;
+            try { saved = JSON.parse(sessionStorage.getItem('presiyometreForm') || 'null'); } catch (e) { saved = null; }
+            if (!saved) { generateKuyuFields(); return; }
+
+            document.getElementById('kuyuSayisi').value = saved.kuyuSayisi || 1;
+            var tip = saved.fields['rapor_tipi'] || 'toprak';
+            document.getElementById('raporTipi').value = tip;
+            document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.toggle('active', b.dataset.tip === tip); });
+            generateKuyuFields();
+
+            const sayi = parseInt(saved.kuyuSayisi) || 1;
+            for (let i = 1; i <= sayi; i++) {
+                const dInput = document.querySelector(`[name="kuyu_${i}_derinlikler"]`);
+                if (dInput && saved.fields[`kuyu_${i}_derinlikler`] != null) {
+                    dInput.value = saved.fields[`kuyu_${i}_derinlikler`];
+                    generateBasincFields(i);
+                }
+            }
+
+            Object.keys(saved.fields).forEach(name => {
+                document.querySelectorAll(`[name="${name}"]`).forEach(el => {
+                    if (el.type !== 'file') el.value = saved.fields[name];
+                });
+            });
+
+            document.querySelectorAll('.kaya-em-input').forEach(function (el) { el.style.display = (tip === 'kaya') ? 'block' : 'none'; });
+
+            updateRaporSayisi();
+        }
+
+        // Sayfa yüklendiğinde son değerleri geri yükle
+        restoreForm();
+
+        // Her değişiklikte otomatik kaydet
+        document.getElementById('mainForm').addEventListener('input', saveForm);
+        document.getElementById('mainForm').addEventListener('change', saveForm);
+        document.getElementById('mainForm').addEventListener('submit', saveForm);
+
+        // ===== Veritabanı: kayıtlı raporu dosyadan aç =====
+        function dbOpenFolder() {
+            fetch('/db_open_folder', { method: 'POST' }).then(function (r) { return r.json(); }).then(function (d) {
+                if (!d || !d.ok) { alert('Klasör açılamadı.\n' + (d && d.path ? d.path : '')); }
+            }).catch(function () { alert('Klasör açılamadı.'); });
+        }
     </script>
 </body>
 </html>
