@@ -1,3 +1,29 @@
+.tab-bar {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 22px;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.tab-btn {
+    padding: 12px 28px;
+    border: none;
+    background: #f0f0f0;
+    color: #666;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 8px 8px 0 0;
+    transition: background 0.2s, color 0.2s;
+}
+
+.tab-btn:hover { background: #e6e6e6; }
+
+.tab-btn.active {
+    background: linear-gradient(135deg, #2c3e50, #34495e);
+    color: #fff;
+}
+
 /* ===== GENEL SAYFA AYARLARI ===== */
 @page {
     size: A4;
@@ -8,6 +34,11 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+}
+
+:root {
+    --foy-color-1: #FDE4CC;
+    --foy-color-2: #FDE4CC;
 }
 
 body {
@@ -121,10 +152,11 @@ body {
     padding: 0px 2px;
     vertical-align: middle;
     height: 15px;
+    background-color: var(--foy-color-1);
 }
 
 .info-table .label-cell {
-    background-color: #FFE4C4;
+    background-color: var(--foy-color-1);
     font-style: italic;
     width: 15%;
 }
@@ -168,7 +200,7 @@ body {
 }
 
 .data-table thead th {
-    background-color: #FFFFCC;
+    background-color: var(--foy-color-2);
     font-size: 7pt;
     font-weight: bold;
     font-style: italic;
@@ -221,10 +253,11 @@ body {
     text-align: center;
     vertical-align: middle;
     height: 26px;
+    background-color: var(--foy-color-2);
 }
 
 .results-table .result-label {
-    background-color: #FFFFCC;
+    background-color: var(--foy-color-2);
     font-size: 8pt;
     font-weight: bold;
     font-style: italic;
@@ -281,10 +314,11 @@ body {
     vertical-align: middle;
     height: 18px;
     font-size: 7.5pt;
+    background-color: var(--foy-color-2);
 }
 
 .bottom-calc-table .calc-label {
-    background-color: #FFFFCC;
+    background-color: var(--foy-color-2);
     font-weight: bold;
     font-style: italic;
 }
