@@ -216,7 +216,7 @@
                     <span class="tr-text">Manometre Yüksekliği (m)</span>
                     <span class="en-text">Height of Manometer</span>
                 </td>
-                <td class="value-cell">{{ data.manometre_yuksekligi }}</td>
+                <td class="value-cell">{{ data.manometre_yuksekligi | virgul }}</td>
                 <td class="label-cell" colspan="2">
                     <span class="tr-text">Presiyometre Türü</span>
                     <span class="en-text">Type of Pressuremeter</span>
@@ -228,8 +228,17 @@
                     <span class="tr-text">Deney Derinliği (m)</span>
                     <span class="en-text">Test Depth</span>
                 </td>
-                <td class="value-cell bold">{{ data.deney_derinligi }}</td>
-                <td colspan="2"></td>
+                <td class="value-cell bold">{{ data.deney_derinligi_disp or data.deney_derinligi }}</td>
+                {% if data.yeralti_su_seviyesi %}
+                <td class="label-cell">
+                    <span class="tr-text">Yeraltı Su Seviyesi (m)</span>
+                    <span class="en-text">Water Level (GWL)</span>
+                </td>
+                <td class="value-cell">{{ data.yeralti_su_seviyesi | virgul }}</td>
+                {% else %}
+                <td class="label-cell"></td>
+                <td class="value-cell"></td>
+                {% endif %}
                 <td class="label-cell" colspan="2">
                     <span class="tr-text">Deney Tarih</span>
                     <span class="en-text">Date of Test</span>
@@ -254,54 +263,51 @@
                     <th>
                         <span class="tr-text">Deney Basıncı</span>
                         <span class="en-text">Volumeter Pressure</span>
+                        <span class="unit-text">bar</span>
                     </th>
                     <th>
                         <span class="tr-text">Hacim Ölçer Okuması</span>
                         <span class="en-text">volumeter reading</span>
+                        <span class="unit-text">cm³</span>
                     </th>
                     <th>
                         <span class="tr-text">Hidrostatik Basınç Düzeltmesi</span>
                         <span class="en-text">Hydrostatic Pressure</span>
+                        <span class="unit-text">kg/cm²</span>
                     </th>
                     <th>
                         <span class="tr-text">Hacim Düzeltmesi</span>
                         <span class="en-text">Volume Correction</span>
+                        <span class="unit-text">cm³</span>
                     </th>
                     <th>
                         <span class="tr-text">Düzeltilmiş Hacim</span>
                         <span class="en-text">Corrected Volume</span>
+                        <span class="unit-text">cm³</span>
                     </th>
                     <th>
                         <span class="tr-text">Mebran Düzeltmesi</span>
                         <span class="en-text">Membrane Correction</span>
+                        <span class="unit-text">kg/cm²</span>
                     </th>
                     <th>
                         <span class="tr-text">Düzeltilmiş Basınç</span>
                         <span class="en-text">Corrected Pressure</span>
+                        <span class="unit-text">kg/cm²</span>
                     </th>
-                </tr>
-                <tr class="unit-row">
-                    <th></th>
-                    <th>bar</th>
-                    <th>cm³</th>
-                    <th>kg/cm²</th>
-                    <th>cm³</th>
-                    <th>cm³</th>
-                    <th>kg/cm²</th>
-                    <th>kg/cm²</th>
                 </tr>
             </thead>
             <tbody>
                 {% for row in data.tablo %}
                 <tr>
                     <td class="kademe">{{ row.kademe }}</td>
-                    <td>{{ row.basinc }}</td>
+                    <td>{{ row.basinc | virgul }}</td>
                     <td>{{ row.hacim }}</td>
-                    <td>{{ row.hidrost }}</td>
+                    <td>{{ row.hidrost | virgul }}</td>
                     <td>{{ row.hacim_duz }}</td>
                     <td>{{ row.duz_hacim }}</td>
-                    <td>{{ row.mebran_duz }}</td>
-                    <td>{{ row.duz_basinc }}</td>
+                    <td>{{ row.mebran_duz | virgul }}</td>
+                    <td>{{ row.duz_basinc | virgul }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -312,9 +318,9 @@
             <tr>
                 <td class="section-title" colspan="4">Belirlenen Değerler / Assessed Values</td>
                 <td class="result-label">Limit Basınç<br>PL* (kg/cm²)</td>
-                <td class="result-value">{{ data.sonuclar.limit_basinc }}</td>
+                <td class="result-value">{{ data.sonuclar.limit_basinc | virgul }}</td>
                 <td class="result-label">Elastisite Modülü<br>EM (kg/cm²)</td>
-                <td class="result-value">{{ data.sonuclar.elastisite }}</td>
+                <td class="result-value">{{ data.sonuclar.elastisite | virgul }}</td>
             </tr>
         </table>
 
@@ -334,12 +340,12 @@
                     <button onclick="hidePiPfPanel({{ loop.index }})" style="padding:2px 8px;font-size:7.5pt;background:#95a5a6;color:#fff;border:none;border-radius:3px;cursor:pointer;">✖</button>
                 </span>
             </div>
-            <div style="display:flex; gap:10px; height:100%;">
+            <div style="display:flex; gap:10px; height:63mm;">
                 {% set max_bas = data.tablo[-1].basinc | float %}
-                <div class="chart-container chart-left-wrap" style="height:220px; flex:2; position:relative;">
+                <div class="chart-container chart-left-wrap" style="height:63mm; flex:2; position:relative;">
                     <canvas id="chart_left_{{ loop.index }}"></canvas>
                 </div>
-                <div class="chart-container chart-right-wrap" style="height:220px; flex:1; position:relative;">
+                <div class="chart-container chart-right-wrap" style="height:63mm; flex:1; position:relative;">
                     <div class="no-print" style="position:absolute;top:2px;right:2px;z-index:10;">
                         <button type="button" class="btn-right-edit" onclick="enableRightEdit({{ loop.index }})" style="padding:2px 6px;font-size:7pt;background:#f39c12;color:#fff;border:none;border-radius:3px;cursor:pointer;">✏️</button>
                         <button type="button" class="btn-right-save" onclick="saveRightEdit({{ loop.index }})" style="display:none;padding:2px 6px;font-size:7pt;background:#27ae60;color:#fff;border:none;border-radius:3px;cursor:pointer;">💾</button>
@@ -353,23 +359,23 @@
         <table class="bottom-calc-table">
             <tr>
                 <td class="calc-label">Pᵢ (kg/cm²)</td>
-                <td class="calc-value">{{ data.sonuclar.pi }}</td>
+                <td class="calc-value">{{ data.sonuclar.pi | virgul }}</td>
                 <td class="calc-label">Vᵢ (cm³)</td>
                 <td class="calc-value">{{ data.sonuclar.vi }}</td>
                 <td class="calc-label">ΔP (kg/cm²)</td>
-                <td class="calc-value">{{ data.sonuclar.delta_p }}</td>
+                <td class="calc-value">{{ data.sonuclar.delta_p | virgul }}</td>
                 <td class="calc-label">Net Limit Basınç (kg/cm²)</td>
-                <td class="calc-value">{{ data.sonuclar.net_limit }}</td>
+                <td class="calc-value">{{ data.sonuclar.net_limit | virgul }}</td>
             </tr>
             <tr>
                 <td class="calc-label">Pf (kg/cm²)</td>
-                <td class="calc-value">{{ data.sonuclar.pf }}</td>
+                <td class="calc-value">{{ data.sonuclar.pf | virgul }}</td>
                 <td class="calc-label">Vf (cm³)</td>
                 <td class="calc-value">{{ data.sonuclar.vf }}</td>
                 <td class="calc-label">ΔV (cm³)</td>
                 <td class="calc-value">{{ data.sonuclar.delta_v }}</td>
                 <td class="calc-label">E / Pl</td>
-                <td class="calc-value">{{ data.sonuclar.e_pl }}</td>
+                <td class="calc-value">{{ data.sonuclar.e_pl | virgul }}</td>
             </tr>
         </table>
 
@@ -409,11 +415,12 @@
     const HACIM_DUZ_DEGER = [0,1,1,2,3,4,5,6,6,7,8,9,8,7,8,10];
 
     var FOY_META = [
-        {% for data in raporlar %}{ idx: {{ loop.index }}, proje: {{ data.proje_adi | tojson }}, kuyu: {{ data.kuyu_no | tojson }}, derinlik: {{ data.deney_derinligi | tojson }} },
+        {% for data in raporlar %}{ idx: {{ loop.index }}, musteri: {{ data.musteri_adi | tojson }}, proje: {{ data.proje_adi | tojson }}, kuyu: {{ data.kuyu_no | tojson }}, derinlik: {{ data.deney_derinligi | tojson }} },
         {% endfor %}
     ];
     var RAPOR_TIPI = {{ (raporlar[0].rapor_tipi if raporlar else 'toprak') | default('toprak', true) | tojson }};
     var PROJE_ADI = FOY_META.length ? FOY_META[0].proje : '';
+    var MUSTERI_ADI = FOY_META.length ? FOY_META[0].musteri : '';
     function bugunTarih() {
         var now = new Date();
         var dd = String(now.getDate()).padStart(2,'0');
@@ -421,11 +428,18 @@
         return dd + '-' + mm + '-' + now.getFullYear();
     }
     function temizAd(s) { return String(s == null ? '' : s).replace(/[\\/:*?"<>|]/g, '-').trim(); }
+    // Ondalık gösterim: nokta yerine virgül
+    function vfmt(x) { return Number(x).toFixed(2).replace('.', ','); }
+    // Virgüllü/nokta metni sayıya çevirir
+    function vnum(s) { return parseFloat(String(s).replace(',', '.')) || 0; }
     function foyDosyaAdi(kuyu, derinlik) {
         return temizAd(PROJE_ADI) + '_' + temizAd(kuyu) + '_' + temizAd(derinlik) + 'm_' + bugunTarih();
     }
+    // Veritabanı dosya adı: {Kuyu No}_{Deney Derinliği}m
+    function dbDosyaAdi(kuyu, derinlik) {
+        return temizAd(kuyu) + '_' + temizAd(derinlik) + 'm';
+    }
     function printAll() {
-        dbSaveFoys();
         var eski = document.title;
         document.title = temizAd(PROJE_ADI) + '__' + bugunTarih();
         setMarkers(null, false);
@@ -440,6 +454,8 @@
     function syncFoyFromDOM(idx) {
         var foy = DB_PAYLOAD.foys[idx - 1];
         if (!foy) return;
+        // Gösterimdeki virgülü, kayıtta noktaya çevir (veri nokta tabanlı kalsın)
+        var dot = function (s) { return String(s).trim().replace(',', '.'); };
         var table = document.getElementById('dataTable_' + idx);
         if (table) {
             var tablo = [];
@@ -447,10 +463,10 @@
                 var c = tr.querySelectorAll('td');
                 if (c.length < 8) return;
                 tablo.push({
-                    kademe: c[0].textContent.trim(), basinc: c[1].textContent.trim(),
-                    hacim: c[2].textContent.trim(), hidrost: c[3].textContent.trim(),
+                    kademe: c[0].textContent.trim(), basinc: dot(c[1].textContent),
+                    hacim: c[2].textContent.trim(), hidrost: dot(c[3].textContent),
                     hacim_duz: c[4].textContent.trim(), duz_hacim: c[5].textContent.trim(),
-                    mebran_duz: c[6].textContent.trim(), duz_basinc: c[7].textContent.trim()
+                    mebran_duz: dot(c[6].textContent), duz_basinc: dot(c[7].textContent)
                 });
             });
             foy.tablo = tablo;
@@ -458,13 +474,13 @@
         var rapor = document.getElementById('foy_' + idx);
         foy.sonuclar = foy.sonuclar || {};
         var rc = rapor.querySelectorAll('.results-table .result-value');
-        if (rc.length >= 2) { foy.sonuclar.limit_basinc = rc[0].textContent.trim(); foy.sonuclar.elastisite = rc[1].textContent.trim(); }
+        if (rc.length >= 2) { foy.sonuclar.limit_basinc = dot(rc[0].textContent); foy.sonuclar.elastisite = dot(rc[1].textContent); }
         var cc = rapor.querySelectorAll('.bottom-calc-table .calc-value');
         if (cc.length >= 8) {
-            foy.sonuclar.pi = cc[0].textContent.trim(); foy.sonuclar.vi = cc[1].textContent.trim();
-            foy.sonuclar.delta_p = cc[2].textContent.trim(); foy.sonuclar.net_limit = cc[3].textContent.trim();
-            foy.sonuclar.pf = cc[4].textContent.trim(); foy.sonuclar.vf = cc[5].textContent.trim();
-            foy.sonuclar.delta_v = cc[6].textContent.trim(); foy.sonuclar.e_pl = cc[7].textContent.trim();
+            foy.sonuclar.pi = dot(cc[0].textContent); foy.sonuclar.vi = cc[1].textContent.trim();
+            foy.sonuclar.delta_p = dot(cc[2].textContent); foy.sonuclar.net_limit = dot(cc[3].textContent);
+            foy.sonuclar.pf = dot(cc[4].textContent); foy.sonuclar.vf = cc[5].textContent.trim();
+            foy.sonuclar.delta_v = cc[6].textContent.trim(); foy.sonuclar.e_pl = dot(cc[7].textContent);
         }
     }
 
@@ -488,28 +504,25 @@
     }
 
     function saveSingleFoy(idx, kuyu, derinlik) {
-        dbSaveFoys([idx]).then(function (map) {
-            var suffix = map && map[idx];
-            // Tüm föyleri gizle, sadece seçileni göster
-            var allFoys = document.querySelectorAll('.rapor-sayfa');
-            var topBar = document.querySelector('[style*="sticky"]');
-            allFoys.forEach(function(f){ f.style.display = 'none'; });
-            topBar.style.display = 'none';
-            document.getElementById('foy_' + idx).style.display = 'block';
+        // Tüm föyleri gizle, sadece seçileni göster
+        var allFoys = document.querySelectorAll('.rapor-sayfa');
+        var topBar = document.querySelector('[style*="sticky"]');
+        allFoys.forEach(function(f){ f.style.display = 'none'; });
+        topBar.style.display = 'none';
+        document.getElementById('foy_' + idx).style.display = 'block';
 
-            // Dosya adı önerisi
-            document.title = foyDosyaAdi(kuyu, derinlik) + (suffix ? '_' + suffix : '');
+        // Dosya adı önerisi
+        document.title = foyDosyaAdi(kuyu, derinlik);
 
-            // Yazdır
-            setMarkers(idx, false);
-            window.print();
-            setMarkers(idx, true);
+        // Yazdır
+        setMarkers(idx, false);
+        window.print();
+        setMarkers(idx, true);
 
-            // Geri göster
-            allFoys.forEach(function(f){ f.style.display = ''; });
-            topBar.style.display = '';
-            document.title = 'Presiyometre Deney Raporu - {{ toplam }} Föy';
-        });
+        // Geri göster
+        allFoys.forEach(function(f){ f.style.display = ''; });
+        topBar.style.display = '';
+        document.title = 'Presiyometre Deney Raporu - {{ toplam }} Föy';
     }
 
     // Pi,Vi / Pf,Vf üçgenlerini ekranda göster, PDF/yazdırmada gizle
@@ -565,7 +578,7 @@
 
     function downloadFoyPDF(idx, kuyu, derinlik) {
         if (typeof html2canvas === 'undefined' || !window.jspdf) { alert('PDF kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.'); return; }
-        dbSaveFoys([idx]).then(function (map) { generateFoyPDF(idx, kuyu, derinlik, map[idx]); });
+        generateFoyPDF(idx, kuyu, derinlik, 0);
     }
 
     function downloadAllPDF() {
@@ -672,7 +685,7 @@
         dbSaveFoys().then(function (map) {
             var metas = FOY_META.slice();
             var pages = metas.map(function (m) {
-                return { name: foyDosyaAdi(m.kuyu, m.derinlik) + (map[m.idx] ? '_' + map[m.idx] : ''), html: buildFoyPrintHTML(m.idx) };
+                return { name: dbDosyaAdi(m.kuyu, m.derinlik) + (map[m.idx] ? '_' + map[m.idx] : ''), html: buildFoyPrintHTML(m.idx) };
             });
             return fetch('/pdf_prepare', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -682,7 +695,7 @@
                 var items = res.tokens.map(function (tok, i) { return { token: tok, filename: pages[i].name }; });
                 return fetch('/pdf_export', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ items: items, proje: PROJE_ADI })
+                    body: JSON.stringify({ items: items, proje: PROJE_ADI, musteri: MUSTERI_ADI })
                 }).then(function (r) { return r.json(); });
             });
         }).then(function (res) {
@@ -706,17 +719,15 @@
     function downloadAllSeparatePDF() {
         if (typeof html2canvas === 'undefined' || !window.jspdf) { alert('PDF kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edin.'); return; }
         if (!FOY_META.length) return;
-        dbSaveFoys().then(function (map) {
-            var i = 0;
-            function next() {
-                if (i >= FOY_META.length) { alert(FOY_META.length + ' föy ayrı PDF olarak kaydedildi.'); return; }
-                var m = FOY_META[i++];
-                generateFoyPDF(m.idx, m.kuyu, m.derinlik, map[m.idx]).then(function () {
-                    setTimeout(next, 400);
-                });
-            }
-            next();
-        });
+        var i = 0;
+        function next() {
+            if (i >= FOY_META.length) { alert(FOY_META.length + ' föy ayrı PDF olarak kaydedildi.'); return; }
+            var m = FOY_META[i++];
+            generateFoyPDF(m.idx, m.kuyu, m.derinlik, 0).then(function () {
+                setTimeout(next, 400);
+            });
+        }
+        next();
     }
 
     // EM üst sınırları (bar bazında)
@@ -790,7 +801,7 @@
             type: 'scatter',
             plugins: [leftMinorGrid],
             data: { datasets: [
-                { label: 'Presiyometre Egrisi', data: data, borderColor: '#1a5276', backgroundColor: '#1a5276', borderWidth: 1.5, pointRadius: 1.5, pointHitRadius: 6, showLine: true, tension: 0.4, fill: false },
+                { label: 'Presiyometre Egrisi', data: data, borderColor: '#1a5276', backgroundColor: '#1a5276', borderWidth: 2.2, pointRadius: 1.5, pointHitRadius: 6, showLine: true, tension: 0.4, fill: false },
                 { label: 'Pi, Vi', data: [{x:pi,y:vi}], borderColor: '#e74c3c', backgroundColor: '#e74c3c', pointRadius: 5, pointStyle: 'triangle', showLine: false },
                 { label: 'Pf, Vf', data: [{x:pf,y:vf}], borderColor: '#f39c12', backgroundColor: '#f39c12', pointRadius: 5, pointStyle: 'triangle', showLine: false }
             ]},
@@ -799,12 +810,12 @@
                 scales: {
                     x: { title: { display: true, text: 'Basinc, P (kg/cm2)', font: { family: 'Times New Roman', size: 10, style: 'italic' } },
                         grid: { color: '#aaa' },
-                        ticks: { autoSkip: false, font: { size: 6 } },
+                        ticks: { autoSkip: false, color: '#000', font: { size: 7 } },
                         afterBuildTicks: function(axis){ axis.ticks = leftXMajorTicks(xMax, xStep); },
                         min: 0, max: xMax },
                     y: { title: { display: true, text: 'Hacim, V (cm3)', font: { family: 'Times New Roman', size: 10, style: 'italic' } },
                         grid: { color: '#aaa' },
-                        ticks: { autoSkip: false, includeBounds: true, font: { size: 6 } },
+                        ticks: { autoSkip: false, includeBounds: true, color: '#000', font: { size: 7 } },
                         min: 0, max: yTop, afterBuildTicks: function(axis){ var arr=[]; for(var v=0; v<=yTop; v+=100){ arr.push({value:v}); } axis.ticks=arr; } }
                 }
             }
@@ -870,9 +881,8 @@
         var pLim=m!==0?(vLim-b)/m:35, xMax=Math.max(35,pLim+5);
         if (xMax <= 50) { xMax = Math.ceil(xMax/5)*5; } else { xMax = Math.min(100, Math.ceil(xMax/10)*10); }
         if (RAPOR_TIPI === 'kaya') {
-            // Kaya: PL'ye uzatma yok; x ekseni test aralığında kalsın (trend düz, V_lim'e değmez)
-            var lastP = data[data.length - 1].x;
-            xMax = Math.max(20, Math.ceil((lastP + 3) / 5) * 5);
+            // Kaya: PL'ye uzatma yok; x ekseni sabit 0-35 aralığında
+            xMax = 35;
         }
         var yMin = 100;
         var startFloor = yMin + 40;                    // başlangıç topu y tabanının üstünde
@@ -900,7 +910,7 @@
             ]},
             options: { responsive: true, maintainAspectRatio: false, animation: false,
                 plugins: { legend: { display: false }, dragData: false },
-                scales: { x: { title: { display: true, text: 'P (kg/cm2)', font: { size: 9, style: 'italic' } }, min: 0, max: xMax, grid: { color: '#aaa' }, ticks: { autoSkip: false, font: { size: 6 } }, afterBuildTicks: function(axis){ axis.ticks = rightXMajorTicks(axis.max); } }, y: { title: { display: true, text: 'V (cm3)', font: { size: 9, style: 'italic' } }, grid: { color: '#aaa' }, ticks: { font: { size: 6 } }, min: 100, max: Math.max(1000, vLim+100) } }
+                scales: { x: { title: { display: true, text: 'P (kg/cm2)', font: { size: 9, style: 'italic' } }, min: 0, max: xMax, grid: { color: '#aaa' }, ticks: { autoSkip: false, color: '#000', font: { size: 7 } }, afterBuildTicks: function(axis){ axis.ticks = rightXMajorTicks(axis.max); } }, y: { title: { display: true, text: 'V (cm3)', font: { size: 9, style: 'italic' } }, grid: { color: '#aaa' }, ticks: { color: '#000', font: { size: 7 } }, min: 100, max: Math.max(1000, vLim+100) } }
             }
         });
     }
@@ -978,15 +988,15 @@
         var lim = data[data.length - 1].x, dP = pf - pi, dV = vf - vi, vm = (vi + vf) / 2;
         var rapor = document.getElementById('chartSection_' + idx).closest('.rapor-sayfa');
         var rc = rapor.querySelectorAll('.results-table .result-value');
-        var em = rc.length >= 2 ? (parseFloat(rc[1].textContent) || 0) : 0; // EM sabit korunur
+        var em = rc.length >= 2 ? (vnum(rc[1].textContent) || 0) : 0; // EM sabit korunur
         var nl = lim - pi, epl = nl !== 0 ? em / nl : 0;
-        if (rc.length >= 2) { rc[0].textContent = lim.toFixed(2); }
+        if (rc.length >= 2) { rc[0].textContent = vfmt(lim); }
         var cc = rapor.querySelectorAll('.bottom-calc-table .calc-value');
         if (cc.length >= 8) {
-            cc[0].textContent = pi.toFixed(2); cc[1].textContent = Math.round(vi);
-            cc[2].textContent = dP.toFixed(2); cc[3].textContent = nl.toFixed(2);
-            cc[4].textContent = pf.toFixed(2); cc[5].textContent = Math.round(vf);
-            cc[6].textContent = Math.round(dV); cc[7].textContent = epl.toFixed(2);
+            cc[0].textContent = vfmt(pi); cc[1].textContent = Math.round(vi);
+            cc[2].textContent = vfmt(dP); cc[3].textContent = vfmt(nl);
+            cc[4].textContent = vfmt(pf); cc[5].textContent = Math.round(vf);
+            cc[6].textContent = Math.round(dV); cc[7].textContent = vfmt(epl);
         }
         if (charts[idx]) charts[idx].destroy();
         if (chartsRight[idx]) chartsRight[idx].destroy();
@@ -1062,7 +1072,7 @@
                 if(v.y<0)v.y=0; if(v.y>535)v.y=535; if(v.x<0)v.x=0;
                 var tt=document.getElementById('dragTooltip');
                 tt.style.display='block'; tt.style.left=(e.clientX||e.x)+15+'px'; tt.style.top=(e.clientY||e.y)-30+'px';
-                tt.textContent='P: '+v.x.toFixed(2)+' | V: '+v.y.toFixed(0);
+                tt.textContent='P: '+vfmt(v.x)+' | V: '+v.y.toFixed(0);
                 return v;
             },
             onDragEnd: function(e,di,i,v){ document.getElementById('dragTooltip').style.display='none'; editData[idx][i]={x:v.x,y:v.y}; }
@@ -1090,15 +1100,15 @@
         var n = nd.length - 1;
         var indices = customPiPf[idx] || getPiPfIndices(maxBar, n);
         var piI = indices[0], pfI = indices[1];
-        nd.forEach(function(pt,i){ if(i<rows.length){ var c=rows[i].querySelectorAll('td'); c[5].textContent=Math.round(pt.y); c[7].textContent=pt.x.toFixed(2); c[6].textContent=interpolate(pt.y,MEBRAN_HACIM,MEBRAN_BASINC).toFixed(2); }});
+        nd.forEach(function(pt,i){ if(i<rows.length){ var c=rows[i].querySelectorAll('td'); c[5].textContent=Math.round(pt.y); c[7].textContent=vfmt(pt.x); c[6].textContent=vfmt(interpolate(pt.y,MEBRAN_HACIM,MEBRAN_BASINC)); }});
         var pi=nd[piI].x,vi=nd[piI].y,pf=nd[pfI].x,vf=nd[pfI].y;
         var lim=nd[nd.length-1].x, dP=pf-pi, dV=vf-vi, vm=(vi+vf)/2;
         var rc=rapor.querySelectorAll('.results-table .result-value');
-        var em=rc.length>=2?(parseFloat(rc[1].textContent)||0):0; // EM sabit (tablo/manuel) korunur
+        var em=rc.length>=2?(vnum(rc[1].textContent)||0):0; // EM sabit (tablo/manuel) korunur
         var nl=lim-pi, epl=nl!==0?em/nl:0;
-        if(rc.length>=2){rc[0].textContent=lim.toFixed(2);}
+        if(rc.length>=2){rc[0].textContent=vfmt(lim);}
         var cc=rapor.querySelectorAll('.bottom-calc-table .calc-value');
-        if(cc.length>=8){cc[0].textContent=pi.toFixed(2);cc[1].textContent=Math.round(vi);cc[2].textContent=dP.toFixed(2);cc[3].textContent=nl.toFixed(2);cc[4].textContent=pf.toFixed(2);cc[5].textContent=Math.round(vf);cc[6].textContent=Math.round(dV);cc[7].textContent=epl.toFixed(2);}
+        if(cc.length>=8){cc[0].textContent=vfmt(pi);cc[1].textContent=Math.round(vi);cc[2].textContent=vfmt(dP);cc[3].textContent=vfmt(nl);cc[4].textContent=vfmt(pf);cc[5].textContent=Math.round(vf);cc[6].textContent=Math.round(dV);cc[7].textContent=vfmt(epl);}
         sec.classList.remove('edit-active');
         document.getElementById('btnSave_'+idx).style.display='none';
         document.getElementById('btnCancel_'+idx).style.display='none';
@@ -1139,23 +1149,23 @@
             var hac=parseInt(cells[2].textContent)||0;
             if(hac<0)hac=0; if(hac>535)hac=535;
             cells[2].textContent=hac; cells[2].removeAttribute('contenteditable'); cells[2].classList.remove('editable-cell');
-            var bas=parseFloat(cells[1].textContent)||0;
-            var hid=bas+manYuk/10; cells[3].textContent=hid.toFixed(2);
+            var bas=vnum(cells[1].textContent);
+            var hid=bas+manYuk/10; cells[3].textContent=vfmt(hid);
             var hd=Math.round(interpolate(hid,HACIM_DUZ_BASINC,HACIM_DUZ_DEGER)); cells[4].textContent=hd;
             var dh=hac-hd; cells[5].textContent=dh;
-            var md=interpolate(dh,MEBRAN_HACIM,MEBRAN_BASINC); cells[6].textContent=md.toFixed(2);
-            var db=hid-md; cells[7].textContent=db.toFixed(2);
+            var md=interpolate(dh,MEBRAN_HACIM,MEBRAN_BASINC); cells[6].textContent=vfmt(md);
+            var db=hid-md; cells[7].textContent=vfmt(db);
             newData.push({x:db,y:dh});
         });
         var n=newData.length, piI=Math.min(3,n-1), pfI=Math.max(n-2,piI+1);
         var pi=newData[piI].x,vi=newData[piI].y,pf=newData[pfI].x,vf=newData[pfI].y;
         var lim=newData[n-1].x, dP=pf-pi, dV=vf-vi, vm=(vi+vf)/2;
         var rc=rapor.querySelectorAll('.results-table .result-value');
-        var em=rc.length>=2?(parseFloat(rc[1].textContent)||0):0; // EM sabit korunur
+        var em=rc.length>=2?(vnum(rc[1].textContent)||0):0; // EM sabit korunur
         var nl=lim-pi, epl=nl!==0?em/nl:0;
-        if(rc.length>=2){rc[0].textContent=lim.toFixed(2);}
+        if(rc.length>=2){rc[0].textContent=vfmt(lim);}
         var cc=rapor.querySelectorAll('.bottom-calc-table .calc-value');
-        if(cc.length>=8){cc[0].textContent=pi.toFixed(2);cc[1].textContent=Math.round(vi);cc[2].textContent=dP.toFixed(2);cc[3].textContent=nl.toFixed(2);cc[4].textContent=pf.toFixed(2);cc[5].textContent=Math.round(vf);cc[6].textContent=Math.round(dV);cc[7].textContent=epl.toFixed(2);}
+        if(cc.length>=8){cc[0].textContent=vfmt(pi);cc[1].textContent=Math.round(vi);cc[2].textContent=vfmt(dP);cc[3].textContent=vfmt(nl);cc[4].textContent=vfmt(pf);cc[5].textContent=Math.round(vf);cc[6].textContent=Math.round(dV);cc[7].textContent=vfmt(epl);}
         originalData[idx]=JSON.parse(JSON.stringify(newData));
         editData[idx]=JSON.parse(JSON.stringify(newData));
         rebuildCharts(idx, newData);

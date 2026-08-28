@@ -200,7 +200,7 @@ body {
 }
 
 .data-table thead th {
-    background-color: var(--foy-color-2);
+    background-color: #fff;
     font-size: 7pt;
     font-weight: bold;
     font-style: italic;
@@ -222,15 +222,16 @@ body {
     display: block;
 }
 
-.data-table thead .unit-row th {
-    height: 14px;
+.data-table thead th .unit-text {
+    display: block;
     font-size: 7pt;
     font-weight: normal;
     font-style: italic;
+    color: #333;
 }
 
 .data-table tbody td {
-    height: 12px;
+    height: 4.6mm;
     font-size: 7.5pt;
     padding: 0px 2px;
 }

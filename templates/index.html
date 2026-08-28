@@ -62,17 +62,21 @@
                 </div>
 
                 <div class="form-row">
-                    <div class="form-group">
+                    <div class="form-group" style="flex:0.85; min-width:150px;">
                         <label>Proje Numarası / Project Number</label>
                         <input type="text" name="proje_numarasi" placeholder="Opsiyonel">
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" style="flex:1; min-width:190px;">
                         <label>Sonda Çapı (mm) / Diameter of Probe</label>
                         <input type="number" name="sonda_capi" value="76" required>
                     </div>
                     <div class="form-group">
                         <label>Sıfır Vol. Okumasındaki Hacim (cm³)</label>
                         <input type="number" name="sifir_vol_hacim" value="535" required>
+                    </div>
+                    <div class="form-group" style="flex:1.15; min-width:205px;">
+                        <label>Yeraltı Su Seviyesi (m) / Water Level (GWL)</label>
+                        <input type="text" name="yeralti_su_seviyesi" placeholder="Opsiyonel">
                     </div>
                 </div>
 
@@ -184,9 +188,9 @@
                                 <input type="text" name="kuyu_${i}_adi" value="SK-${i}" required>
                             </div>
                             <div class="form-group wide">
-                                <label>Deney Derinlikleri (m) — virgülle ayırın</label>
+                                <label>Deney Derinlikleri (m) — noktalı virgül ( ; ) ile ayırın</label>
                                 <input type="text" name="kuyu_${i}_derinlikler" 
-                                       placeholder="Örn: 3, 6, 9, 12, 15" required
+                                       placeholder="Örn: 3,00; 6,00; 9,00; 12,00" required
                                        oninput="generateBasincFields(${i}); updateRaporSayisi();"
                                        id="derinlik_${i}">
                             </div>
@@ -247,7 +251,7 @@
                 }
             });
 
-            const derinlikler = derinlikInput.value.split(',').filter(d => d.trim() !== '');
+            const derinlikler = derinlikInput.value.split(';').filter(d => d.trim() !== '');
             
             if (derinlikler.length === 0) {
                 container.innerHTML = `<div class="form-group wide">
@@ -284,7 +288,7 @@
             for (let i = 1; i <= sayi; i++) {
                 const input = document.querySelector(`[name="kuyu_${i}_derinlikler"]`);
                 if (input && input.value.trim()) {
-                    const derinlikler = input.value.split(',').filter(d => d.trim() !== '');
+                    const derinlikler = input.value.split(';').filter(d => d.trim() !== '');
                     toplam += derinlikler.length;
                 }
             }
@@ -320,6 +324,8 @@
         function resetForm() {
             if (!confirm('Tüm girilen değerler silinecek. Emin misiniz?')) return;
             sessionStorage.removeItem('presiyometreForm');
+            sessionStorage.removeItem('foyColor1_v3');
+            sessionStorage.removeItem('foyColor2_v3');
             window.location.reload();
         }
 

@@ -49,6 +49,14 @@ def sanitize_name(s):
     return s or 'Adsiz'
 
 
+@app.template_filter('virgul')
+def virgul_filter(value):
+    """Ondalık ayırıcıyı gösterimde nokta yerine virgül yapar."""
+    if value is None:
+        return ''
+    return str(value).replace('.', ',')
+
+
 def static_url_to_path(url):
     """/static/... web yolunu dosya sistemi yoluna çevirir."""
     if not url or not url.startswith('/static/'):
@@ -378,6 +386,7 @@ def rapor():
         'proje_numarasi': request.form.get('proje_numarasi', ''),
         'sonda_capi': request.form.get('sonda_capi', '76'),
         'sifir_vol_hacim': request.form.get('sifir_vol_hacim', '535'),
+        'yeralti_su_seviyesi': request.form.get('yeralti_su_seviyesi', '').strip(),
         'manometre_yuksekligi': request.form.get('manometre_yuksekligi', '0.60'),
         'presiyometre_turu': request.form.get('presiyometre_turu', 'Menard GC'),
         'deney_tarih': request.form.get('deney_tarih', ''),
@@ -390,7 +399,7 @@ def rapor():
     for i in range(1, kuyu_sayisi + 1):
         kuyu_adi = request.form.get(f'kuyu_{i}_adi', f'SK-{i}')
         derinlikler_str = request.form.get(f'kuyu_{i}_derinlikler', '')
-        derinlikler = [d.strip() for d in derinlikler_str.split(',') if d.strip()]
+        derinlikler = [d.strip() for d in derinlikler_str.split(';') if d.strip()]
         n_der = len(derinlikler)
         vi_list_kaya = []
         dv_list_kaya = []
@@ -430,6 +439,11 @@ def rapor():
             rapor_data = dict(genel)
             rapor_data['kuyu_no'] = kuyu_adi
             rapor_data['deney_derinligi'] = derinlik
+            try:
+                rapor_data['deney_derinligi_disp'] = '{:.2f}'.format(
+                    float(str(derinlik).replace(',', '.'))).replace('.', ',')
+            except ValueError:
+                rapor_data['deney_derinligi_disp'] = str(derinlik)
             
             # Her derinlik için ayrı max basınç (yeni form yapısı)
             max_basinc = int(request.form.get(f'kuyu_{i}_basinc_{idx}', 20))
@@ -576,22 +590,23 @@ def db_save():
     saved = 0
     names = []
     for foy in foys:
+        musteri = sanitize_name(foy.get('musteri_adi'))
         proje = sanitize_name(foy.get('proje_adi'))
         kuyu = sanitize_name(foy.get('kuyu_no'))
         derinlik = sanitize_name(foy.get('deney_derinligi'))
-        folder = os.path.join(DB_DIR, proje)
+        folder = os.path.join(DB_DIR, musteri, proje)
         os.makedirs(folder, exist_ok=True)
+        rel_media = '{}/{}'.format(musteri, proje)
         # Logo/imza görsellerini DB klasörüne kopyala (yollar kalıcı olsun)
         g = dict(globals_)
         logo_name = copy_media_to_db(folder, globals_.get('logo_url'), 'logo')
         if logo_name:
-            g['logo_url'] = '/db_media/{}/{}'.format(proje, logo_name)
+            g['logo_url'] = '/db_media/{}/{}'.format(rel_media, logo_name)
         imza_name = copy_media_to_db(folder, globals_.get('imza_url'), 'imza')
         if imza_name:
-            g['imza_url'] = '/db_media/{}/{}'.format(proje, imza_name)
-        # Dosya adı: Proje_Kuyu_Derinlikm_tarih ; aynı ad varsa sona artan numara ekle
-        today_str = datetime.date.today().strftime('%d-%m-%Y')
-        base = '{}_{}_{}m_{}'.format(proje, kuyu, derinlik, today_str)
+            g['imza_url'] = '/db_media/{}/{}'.format(rel_media, imza_name)
+        # Dosya adı: {Kuyu No}_{Deney Derinligi}m ; aynı ad varsa sona artan numara ekle
+        base = '{}_{}m'.format(kuyu, derinlik)
         name = base
         suffix = 0
         n = 1
@@ -621,12 +636,14 @@ def db_list():
     return jsonify({'projects': projects})
 
 
-@app.route('/db_media/<path:proje>/<path:filename>')
-def db_media(proje, filename):
+@app.route('/db_media/<path:subpath>')
+def db_media(subpath):
     """DB klasöründeki logo/imza görsellerini sunar."""
-    proje = sanitize_name(proje)
-    filename = os.path.basename(filename)
-    folder = os.path.join(DB_DIR, proje)
+    parts = [sanitize_name(p) for p in subpath.replace('\\', '/').split('/') if p]
+    if not parts:
+        abort(404)
+    filename = os.path.basename(parts[-1])
+    folder = os.path.join(DB_DIR, *parts[:-1])
     if not os.path.isfile(os.path.join(folder, filename)):
         abort(404)
     return send_from_directory(folder, filename)
@@ -714,6 +731,7 @@ def pdf_export():
     """Her token için Edge/Chrome ile ayrı bir piksel-mükemmel PDF üretir."""
     data = request.get_json(force=True, silent=True) or {}
     items = data.get('items', [])
+    musteri = sanitize_name(data.get('musteri') or 'Musteri')
     proje = sanitize_name(data.get('proje') or 'Rapor')
     browser = find_chromium()
     if not browser:
@@ -721,8 +739,7 @@ def pdf_export():
             PRINT_PAGES.pop(it.get('token'), None)
         return jsonify(ok=False, error='no_browser')
 
-    out_dir = os.path.join(app_base_dir(), 'PDF_Ciktilar',
-                           proje + '_' + datetime.datetime.now().strftime('%d-%m-%Y'))
+    out_dir = os.path.join(DB_DIR, musteri, proje)
     os.makedirs(out_dir, exist_ok=True)
     base = request.host_url  # ör: http://localhost:8777/
     saved = []
