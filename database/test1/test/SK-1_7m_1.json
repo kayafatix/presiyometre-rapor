@@ -1,0 +1,254 @@
+{
+  "globals": {
+    "firma_adi": "HAN İNŞAAT & MÜHENDİSLİK",
+    "footer": {
+      "adres": "Yeni mh. Fatih cd. 5107. sk. No:1 D:6  Çayırova/KOCAELİ",
+      "iletisim": "Gsm: 0530 208 65 58 E-mail: yahyakaya58@hotmail.com",
+      "sicil_no": "Oda Sicil No: 18190",
+      "sorumlu_adi": "Yahya Kaya",
+      "sorumlu_unvan": "Jeoloji Mühendisi"
+    },
+    "imza_url": "",
+    "logo_url": "/db_media/test1/test/logo.png"
+  },
+  "data": {
+    "deney_derinligi": "7",
+    "deney_derinligi_disp": "7,00",
+    "deney_tarih": "",
+    "kuyu_no": "SK-1",
+    "manometre_yuksekligi": "0.60",
+    "max_basinc": 20,
+    "musteri_adi": "test1",
+    "presiyometre_turu": "Menard GC",
+    "proje_adi": "test",
+    "proje_numarasi": "",
+    "rapor_tipi": "toprak",
+    "sifir_vol_hacim": "535",
+    "sonda_capi": "76",
+    "sonuclar": {
+      "delta_p": "11.73",
+      "delta_v": "54",
+      "e_pl": "23.10",
+      "elastisite": "372.38",
+      "limit_basinc": "17.99",
+      "net_limit": "16.12",
+      "pf": "13.60",
+      "pi": "1.87",
+      "vf": "342",
+      "vi": "288"
+    },
+    "tablo": [
+      {
+        "kademe": "0",
+        "basinc": "0.00",
+        "hacim": "0",
+        "hidrost": "0.06",
+        "hacim_duz": "0",
+        "duz_hacim": "0",
+        "mebran_duz": "0.00",
+        "duz_basinc": "0.06"
+      },
+      {
+        "kademe": "1",
+        "basinc": "1.00",
+        "hacim": "166",
+        "hidrost": "1.06",
+        "hacim_duz": "1",
+        "duz_hacim": "165",
+        "mebran_duz": "0.60",
+        "duz_basinc": "0.46"
+      },
+      {
+        "kademe": "2",
+        "basinc": "2.00",
+        "hacim": "256",
+        "hidrost": "2.06",
+        "hacim_duz": "1",
+        "duz_hacim": "255",
+        "mebran_duz": "1.02",
+        "duz_basinc": "1.04"
+      },
+      {
+        "kademe": "3",
+        "basinc": "3.00",
+        "hacim": "290",
+        "hidrost": "3.06",
+        "hacim_duz": "2",
+        "duz_hacim": "288",
+        "mebran_duz": "1.19",
+        "duz_basinc": "1.87"
+      },
+      {
+        "kademe": "4",
+        "basinc": "4.00",
+        "hacim": "293",
+        "hidrost": "4.06",
+        "hacim_duz": "3",
+        "duz_hacim": "290",
+        "mebran_duz": "1.20",
+        "duz_basinc": "2.86"
+      },
+      {
+        "kademe": "5",
+        "basinc": "5.00",
+        "hacim": "302",
+        "hidrost": "5.06",
+        "hacim_duz": "4",
+        "duz_hacim": "298",
+        "mebran_duz": "1.24",
+        "duz_basinc": "3.82"
+      },
+      {
+        "kademe": "6",
+        "basinc": "6.00",
+        "hacim": "307",
+        "hidrost": "6.06",
+        "hacim_duz": "5",
+        "duz_hacim": "302",
+        "mebran_duz": "1.26",
+        "duz_basinc": "4.80"
+      },
+      {
+        "kademe": "7",
+        "basinc": "7.00",
+        "hacim": "310",
+        "hidrost": "7.06",
+        "hacim_duz": "6",
+        "duz_hacim": "304",
+        "mebran_duz": "1.27",
+        "duz_basinc": "5.79"
+      },
+      {
+        "kademe": "8",
+        "basinc": "8.00",
+        "hacim": "313",
+        "hidrost": "8.06",
+        "hacim_duz": "6",
+        "duz_hacim": "307",
+        "mebran_duz": "1.28",
+        "duz_basinc": "6.78"
+      },
+      {
+        "kademe": "9",
+        "basinc": "9.00",
+        "hacim": "322",
+        "hidrost": "9.06",
+        "hacim_duz": "7",
+        "duz_hacim": "315",
+        "mebran_duz": "1.32",
+        "duz_basinc": "7.74"
+      },
+      {
+        "kademe": "10",
+        "basinc": "10.00",
+        "hacim": "323",
+        "hidrost": "10.06",
+        "hacim_duz": "8",
+        "duz_hacim": "315",
+        "mebran_duz": "1.32",
+        "duz_basinc": "8.74"
+      },
+      {
+        "kademe": "11",
+        "basinc": "11.00",
+        "hacim": "329",
+        "hidrost": "11.06",
+        "hacim_duz": "9",
+        "duz_hacim": "320",
+        "mebran_duz": "1.35",
+        "duz_basinc": "9.71"
+      },
+      {
+        "kademe": "12",
+        "basinc": "12.00",
+        "hacim": "337",
+        "hidrost": "12.06",
+        "hacim_duz": "8",
+        "duz_hacim": "329",
+        "mebran_duz": "1.40",
+        "duz_basinc": "10.67"
+      },
+      {
+        "kademe": "13",
+        "basinc": "13.00",
+        "hacim": "342",
+        "hidrost": "13.06",
+        "hacim_duz": "7",
+        "duz_hacim": "335",
+        "mebran_duz": "1.43",
+        "duz_basinc": "11.63"
+      },
+      {
+        "kademe": "14",
+        "basinc": "14.00",
+        "hacim": "343",
+        "hidrost": "14.06",
+        "hacim_duz": "8",
+        "duz_hacim": "335",
+        "mebran_duz": "1.43",
+        "duz_basinc": "12.63"
+      },
+      {
+        "kademe": "15",
+        "basinc": "15.00",
+        "hacim": "350",
+        "hidrost": "15.06",
+        "hacim_duz": "8",
+        "duz_hacim": "342",
+        "mebran_duz": "1.46",
+        "duz_basinc": "13.60"
+      },
+      {
+        "kademe": "16",
+        "basinc": "16.00",
+        "hacim": "366",
+        "hidrost": "16.06",
+        "hacim_duz": "8",
+        "duz_hacim": "358",
+        "mebran_duz": "1.54",
+        "duz_basinc": "14.52"
+      },
+      {
+        "kademe": "17",
+        "basinc": "17.00",
+        "hacim": "396",
+        "hidrost": "17.06",
+        "hacim_duz": "9",
+        "duz_hacim": "387",
+        "mebran_duz": "1.69",
+        "duz_basinc": "15.37"
+      },
+      {
+        "kademe": "18",
+        "basinc": "18.00",
+        "hacim": "435",
+        "hidrost": "18.06",
+        "hacim_duz": "9",
+        "duz_hacim": "426",
+        "mebran_duz": "1.83",
+        "duz_basinc": "16.23"
+      },
+      {
+        "kademe": "19",
+        "basinc": "19.00",
+        "hacim": "484",
+        "hidrost": "19.06",
+        "hacim_duz": "10",
+        "duz_hacim": "474",
+        "mebran_duz": "1.98",
+        "duz_basinc": "17.08"
+      },
+      {
+        "kademe": "20",
+        "basinc": "20.00",
+        "hacim": "535",
+        "hidrost": "20.06",
+        "hacim_duz": "10",
+        "duz_hacim": "525",
+        "mebran_duz": "2.07",
+        "duz_basinc": "17.99"
+      }
+    ],
+    "yeralti_su_seviyesi": ""
+  }
+}
