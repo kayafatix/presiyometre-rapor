@@ -1,7 +1,7 @@
 name: Build Windows EXE
 
 on:
-  workflow_dispatch: # Actions sekmesinden manuel tetiklemek icin
+  workflow_dispatch:
 
 jobs:
   build-windows:
@@ -14,14 +14,13 @@ jobs:
     - name: Python Kur
       uses: actions/setup-python@v5
       with:
-        python-version: '3.10' # Projeniz baska bir surum gerektiriyorsa degistirin
+        python-version: '3.10'
 
     - name: Kutuphaneleri Yukle
       run: |
         python -m pip install --upgrade pip
         pip install pyinstaller
-        # Eger projenizde requirements.txt varsa, alt satirin basindaki '#' isaretini kaldirin:
-        # pip install -r requirements.txt
+        pip install -r requirements.txt
 
     - name: EXE Olustur
       run: pyinstaller --onefile --name "PresiyometreRapor" --add-data "templates;templates" --add-data "static;static" --console app.py
