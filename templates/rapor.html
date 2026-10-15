@@ -452,10 +452,11 @@
     const HACIM_DUZ_DEGER = [0,1,1,2,3,4,5,6,6,7,8,9,8,7,8,10];
 
     var FOY_META = [
-        {% for data in raporlar %}{ idx: {{ loop.index }}, musteri: {{ data.musteri_adi | tojson }}, proje: {{ data.proje_adi | tojson }}, kuyu: {{ data.kuyu_no | tojson }}, derinlik: {{ data.deney_derinligi | tojson }} },
+        {% for data in raporlar %}{ idx: {{ loop.index }}, musteri: {{ data.musteri_adi | tojson }}, proje: {{ data.proje_adi | tojson }}, kuyu: {{ data.kuyu_no | tojson }}, derinlik: {{ data.deney_derinligi | tojson }}, tip: {{ (data.rapor_tipi or 'toprak') | tojson }} },
         {% endfor %}
     ];
-    var RAPOR_TIPI = {{ (raporlar[0].rapor_tipi if raporlar else 'toprak') | default('toprak', true) | tojson }};
+    // Rapor tipi föy bazında (Karışık Zemin'de aynı kuyuda toprak ve kaya olabilir)
+    function raporTipi(idx) { return metaForFoy(idx).tip || 'toprak'; }
     var PROJE_ADI = FOY_META.length ? FOY_META[0].proje : '';
     var MUSTERI_ADI = FOY_META.length ? FOY_META[0].musteri : '';
     function bugunTarih() {
@@ -866,7 +867,7 @@
         var i = 0;
         function next() {
             if (i >= FOY_META.length) {
-                alert(FOY_META.length + ' föy ayrı PDF olarak Pres Sonuc klasörüne kaydedildi.');
+                alert(FOY_META.length + ' föy ayrı PDF olarak PRES SONUÇ klasörüne kaydedildi.');
                 return Promise.resolve();
             }
             var m = FOY_META[i++];
@@ -1031,7 +1032,7 @@
         var m=(3*sXY-sX*sY)/(3*sX2-sX*sX), b=(sY-m*sX)/3;
         var pLim=m!==0?(vLim-b)/m:35, xMax=Math.max(35,pLim+5);
         if (xMax <= 50) { xMax = Math.ceil(xMax/5)*5; } else { xMax = Math.min(100, Math.ceil(xMax/10)*10); }
-        if (RAPOR_TIPI === 'kaya') {
+        if (raporTipi(idx) === 'kaya') {
             // Kaya: PL'ye uzatma yok; x ekseni sabit 0-35 aralığında
             xMax = 35;
         }
@@ -1116,7 +1117,7 @@
         pfSel.innerHTML = '';
         var maxBar = chartMaxBar[idx] || 20;
         var n = data.length - 1;
-        var cur = customPiPf[idx] || getPiPfIndices(maxBar, n);
+        var cur = customPiPf[idx] || getPiPfIndices(maxBar, n, idx);
         for (var i = 0; i <= n; i++) {
             var lbl = i + ' (P=' + data[i].x.toFixed(1) + ', V=' + Math.round(data[i].y) + ')';
             piSel.innerHTML += '<option value="' + i + '"' + (i == cur[0] ? ' selected' : '') + '>' + lbl + '</option>';
@@ -1157,8 +1158,8 @@
     }
 
     // Pi/Pf indeks hesaplama (backend mantığıyla aynı)
-    function getPiPfIndices(maxBar, n) {
-        if (RAPOR_TIPI === 'kaya') { return [Math.min(2, n), n]; }
+    function getPiPfIndices(maxBar, n, idx) {
+        if (raporTipi(idx) === 'kaya') { return [Math.min(2, n), n]; }
         var idx_i, idx_f;
         if (maxBar <= 6) {
             idx_i = Math.min(2, n);
@@ -1184,7 +1185,7 @@
     function rebuildCharts(idx, data) {
         var maxBar = chartMaxBar[idx] || 20;
         var n = data.length - 1;
-        var indices = customPiPf[idx] || getPiPfIndices(maxBar, n);
+        var indices = customPiPf[idx] || getPiPfIndices(maxBar, n, idx);
         var piI = indices[0], pfI = indices[1];
         var pi=data[piI].x, vi=data[piI].y, pf=data[pfI].x, vf=data[pfI].y;
         if(charts[idx]) charts[idx].destroy();
@@ -1249,7 +1250,7 @@
         var rows = rapor.querySelectorAll('.data-table tbody tr');
         var maxBar = chartMaxBar[idx] || 20;
         var n = nd.length - 1;
-        var indices = customPiPf[idx] || getPiPfIndices(maxBar, n);
+        var indices = customPiPf[idx] || getPiPfIndices(maxBar, n, idx);
         var piI = indices[0], pfI = indices[1];
         nd.forEach(function(pt,i){ if(i<rows.length){ var c=rows[i].querySelectorAll('td'); c[5].textContent=Math.round(pt.y); c[7].textContent=vfmt(pt.x); c[6].textContent=vfmt(interpolate(pt.y,MEBRAN_HACIM,MEBRAN_BASINC)); }});
         var pi=nd[piI].x,vi=nd[piI].y,pf=nd[pfI].x,vf=nd[pfI].y;

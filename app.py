@@ -37,9 +37,30 @@ def app_base_dir():
 
 
 DB_DIR = os.path.join(app_base_dir(), 'database')
+# Eski düzen (database/Data/..., database/Pres Sonuc/...) — sadece eski kayıtları açmak için
 DATA_DIR = os.path.join(DB_DIR, 'Data')
-PRES_SONUC_DIR = os.path.join(DB_DIR, 'Pres Sonuc')
+# Yeni düzen: database/[Müşteri]/[Proje]/DATA (json) ve .../PRES SONUÇ (pdf)
+DATA_SUB = 'DATA'
+PRES_SONUC_SUB = 'PRES SONUÇ'
 os.makedirs(DB_DIR, exist_ok=True)
+
+
+def proje_klasoru(musteri, proje, alt=None):
+    """database/[Müşteri]/[Proje](/alt) klasörünü oluşturur ve yolunu döndürür."""
+    folder = os.path.join(DB_DIR, sanitize_name(musteri), sanitize_name(proje))
+    if alt:
+        folder = os.path.join(folder, alt)
+    os.makedirs(folder, exist_ok=True)
+    return folder
+
+
+def benzersiz_ad(folder, base, ext):
+    """Aynı adda dosya varsa sonuna _1, _2 ... ekler. (ad, sayaç) döndürür."""
+    name, n = base, 0
+    while os.path.exists(os.path.join(folder, name + ext)):
+        n += 1
+        name = '{}_{}'.format(base, n)
+    return name, n
 
 
 def sanitize_name(s):
@@ -416,41 +437,49 @@ def rapor():
         derinlikler_str = request.form.get(f'kuyu_{i}_derinlikler', '')
         derinlikler = [d.strip() for d in derinlikler_str.split('-') if d.strip()]
         n_der = len(derinlikler)
-        vi_list_kaya = []
-        dv_list_kaya = []
+        # Her derinliğin tipi: Karışık Zemin'de satır bazında seçilir, diğerlerinde sekme tipi
+        if rapor_tipi == 'karisik':
+            tip_list = [request.form.get(f'kuyu_{i}_tip_{_di}', 'toprak') for _di in range(n_der)]
+            tip_list = ['kaya' if t == 'kaya' else 'toprak' for t in tip_list]
+        else:
+            tip_list = [rapor_tipi] * n_der
+        kaya_idx = [_di for _di in range(n_der) if tip_list[_di] == 'kaya']
+        toprak_idx = [_di for _di in range(n_der) if tip_list[_di] != 'kaya']
+        vi_list_kaya = [None] * n_der
+        dv_list_kaya = [None] * n_der
+        em_target_list = [None] * n_der
+        em_values = [None] * n_der
 
-        if rapor_tipi == 'kaya':
+        if kaya_idx:
+            # Kaya: sadece kaya derinlikleri arasında sıralı (mevcut kaya mantığı)
+            n_k = len(kaya_idx)
             # Başlangıç hacmi: metre arttıkça 1-5 azalan (kümülatif)
             _kv = random.randint(180, 250)
-            vi_list_kaya = []
-            for _di in range(n_der):
-                if _di > 0:
+            for _k, _di in enumerate(kaya_idx):
+                if _k > 0:
                     _kv -= random.randint(1, 5)
-                vi_list_kaya.append(max(120, _kv))
+                vi_list_kaya[_di] = max(120, _kv)
             # Hedef EM: manuel girilmişse o, yoksa derinlikle artan otomatik (850→~1800)
-            em_target_list = []
-            for _di in range(n_der):
+            _auto = [850 + (1800 - 850) * _k / (n_k - 1) for _k in range(n_k)] if n_k > 1 else [1200]
+            for _k, _di in enumerate(kaya_idx):
                 _v = request.form.get(f'kuyu_{i}_em_{_di}', '').strip()
-                em_target_list.append(float(_v) if _v else None)
-            _auto = [850 + (1800 - 850) * _di / (n_der - 1) for _di in range(n_der)] if n_der > 1 else [1200]
-            em_target_list = [em_target_list[_di] if em_target_list[_di] else _auto[_di] for _di in range(n_der)]
+                em_target_list[_di] = float(_v) if _v else _auto[_k]
             # ΔV'yi hedef EM'den geri hesapla (eğri görsel tutarlı olsun)
-            dv_list_kaya = []
-            for _di in range(n_der):
+            for _di in kaya_idx:
                 _mb = int(request.form.get(f'kuyu_{i}_basinc_{_di}', 20))
                 _dP = max(1.0, _mb - 3.0)
                 _emt = em_target_list[_di]
                 _dvv = 2.66 * _dP * (535 + vi_list_kaya[_di]) / (_emt - 1.33 * _dP) if _emt > 1.33 * _dP else 40
-                dv_list_kaya.append(max(6, int(round(_dvv))))
-        else:
+                dv_list_kaya[_di] = max(6, int(round(_dvv)))
+        if toprak_idx:
             # Toprak: EM tablo bazlı (bar→EM ± tolerans), derinlikle artan (sıralı)
-            em_values = []
-            for _di in range(n_der):
-                _mb = int(request.form.get(f'kuyu_{i}_basinc_{_di}', 20))
-                em_values.append(get_elastisite_modulu(_mb))
-            em_values.sort()
+            _ems = sorted(get_elastisite_modulu(int(request.form.get(f'kuyu_{i}_basinc_{_di}', 20)))
+                          for _di in toprak_idx)
+            for _di, _em in zip(toprak_idx, _ems):
+                em_values[_di] = _em
 
         for idx, derinlik in enumerate(derinlikler):
+            tip = tip_list[idx]
             rapor_data = dict(genel)
             rapor_data['kuyu_no'] = kuyu_adi
             rapor_data['deney_tarih'] = deney_tarih
@@ -470,9 +499,8 @@ def rapor():
             
             # Hacim ölçer verisi üret
             sifir_vol = int(genel.get('sifir_vol_hacim', 535))
-            hacim_listesi = hacim_olcer_verisi(kademe_sayisi, sifir_vol, max_basinc, rapor_tipi, idx,
-                                               vi_list_kaya[idx] if idx < len(vi_list_kaya) else None,
-                                               dv_list_kaya[idx] if idx < len(dv_list_kaya) else None)
+            hacim_listesi = hacim_olcer_verisi(kademe_sayisi, sifir_vol, max_basinc, tip, idx,
+                                               vi_list_kaya[idx], dv_list_kaya[idx])
             
             # Manometre yüksekliği
             manometre_yuk = float(genel.get('manometre_yuksekligi', 0.60))
@@ -543,7 +571,7 @@ def rapor():
             
             # Pi, Pf indekslerini bar seviyesine göre belirle
             idx_i, idx_f = get_pi_pf_indices(max_basinc, n)
-            if rapor_tipi == 'kaya':
+            if tip == 'kaya':
                 idx_i = min(2, n)   # Kaya: Pi = 2 bar (2. sıradaki), değiştirilebilir
                 idx_f = n           # Kaya: Pf = son nokta
             
@@ -559,7 +587,7 @@ def rapor():
             v0 = sifir_vol
             
             # Elastisite Modülü: toprak → tablo (bar→EM), kaya → manuel/otomatik hedef
-            if rapor_tipi == 'kaya':
+            if tip == 'kaya':
                 em = em_target_list[idx]
             else:
                 em = em_values[idx]
@@ -583,7 +611,7 @@ def rapor():
                 'e_pl': f"{e_pl:.2f}",
             }
             rapor_data['max_basinc'] = max_basinc
-            rapor_data['rapor_tipi'] = rapor_tipi
+            rapor_data['rapor_tipi'] = tip
             
             raporlar.append(rapor_data)
 
@@ -603,8 +631,6 @@ def db_save():
     payload = request.get_json(silent=True) or {}
     globals_ = payload.get('globals', {})
     foys = payload.get('foys', [])
-    os.makedirs(DATA_DIR, exist_ok=True)
-    os.makedirs(PRES_SONUC_DIR, exist_ok=True)
     saved = 0
     names = []
     for foy in foys:
@@ -612,26 +638,20 @@ def db_save():
         proje = sanitize_name(foy.get('proje_adi'))
         kuyu = sanitize_name(foy.get('kuyu_no'))
         derinlik = sanitize_name(foy.get('deney_derinligi'))
-        folder = os.path.join(DATA_DIR, musteri, proje)
-        os.makedirs(folder, exist_ok=True)
-        rel_media = 'Data/{}/{}'.format(musteri, proje)
-        # Logo/imza görsellerini DB klasörüne kopyala (yollar kalıcı olsun)
+        proje_dir = proje_klasoru(musteri, proje)
+        folder = proje_klasoru(musteri, proje, DATA_SUB)
+        proje_klasoru(musteri, proje, PRES_SONUC_SUB)
+        rel_media = '{}/{}'.format(musteri, proje)
+        # Logo/imza görsellerini proje klasörüne kopyala (yollar kalıcı olsun)
         g = dict(globals_)
-        logo_name = copy_media_to_db(folder, globals_.get('logo_url'), 'logo')
+        logo_name = copy_media_to_db(proje_dir, globals_.get('logo_url'), 'logo')
         if logo_name:
             g['logo_url'] = '/db_media/{}/{}'.format(rel_media, logo_name)
-        imza_name = copy_media_to_db(folder, globals_.get('imza_url'), 'imza')
+        imza_name = copy_media_to_db(proje_dir, globals_.get('imza_url'), 'imza')
         if imza_name:
             g['imza_url'] = '/db_media/{}/{}'.format(rel_media, imza_name)
         # Dosya adı: {Kuyu No}_{Deney Derinligi}m ; aynı ad varsa sona artan numara ekle
-        base = '{}_{}m'.format(kuyu, derinlik)
-        name = base
-        suffix = 0
-        n = 1
-        while os.path.exists(os.path.join(folder, name + '.json')):
-            name = '{}_{}'.format(base, n)
-            suffix = n
-            n += 1
+        name, suffix = benzersiz_ad(folder, '{}_{}m'.format(kuyu, derinlik), '.json')
         with open(os.path.join(folder, name + '.json'), 'w', encoding='utf-8') as f:
             json.dump({'globals': g, 'data': foy}, f, ensure_ascii=False, indent=2)
         names.append(suffix)
@@ -648,9 +668,9 @@ def pdf_save():
 
     musteri = sanitize_name(request.form.get('musteri'))
     proje = sanitize_name(request.form.get('proje'))
-    filename = os.path.splitext(sanitize_name(pdf_file.filename))[0] + '.pdf'
-    folder = os.path.join(PRES_SONUC_DIR, musteri, proje)
-    os.makedirs(folder, exist_ok=True)
+    folder = proje_klasoru(musteri, proje, PRES_SONUC_SUB)
+    name, _ = benzersiz_ad(folder, os.path.splitext(sanitize_name(pdf_file.filename))[0], '.pdf')
+    filename = name + '.pdf'
     pdf_file.save(os.path.join(folder, filename))
     return jsonify({'ok': True, 'path': os.path.join(folder, filename)})
 
@@ -659,6 +679,17 @@ def pdf_save():
 def db_list():
     """Kayıtlı proje klasörlerini ve föyleri listeler."""
     projects = []
+    for musteri in sorted(os.listdir(DB_DIR)):
+        mdir = os.path.join(DB_DIR, musteri)
+        if musteri == 'Data' or not os.path.isdir(mdir):
+            continue
+        for proje in sorted(os.listdir(mdir)):
+            ddir = os.path.join(mdir, proje, DATA_SUB)
+            if not os.path.isdir(ddir):
+                continue
+            foys = sorted(fn for fn in os.listdir(ddir) if fn.endswith('.json'))
+            if foys:
+                projects.append({'proje': '{}/{}'.format(musteri, proje), 'foys': foys})
     if os.path.isdir(DATA_DIR):
         for musteri in sorted(os.listdir(DATA_DIR)):
             mdir = os.path.join(DATA_DIR, musteri)
@@ -695,7 +726,9 @@ def db_open():
         if part
     ]
     secili = request.form.getlist('foylar')
-    pdir = os.path.join(DATA_DIR, *project_parts) if project_parts else DATA_DIR
+    pdir = os.path.join(DB_DIR, *project_parts, DATA_SUB) if project_parts else DATA_DIR
+    if not os.path.isdir(pdir) and project_parts:
+        pdir = os.path.join(DATA_DIR, *project_parts)
     if not os.path.isdir(pdir) and project_parts:
         pdir = os.path.join(DB_DIR, *project_parts)
     raporlar = []
@@ -791,8 +824,8 @@ def pdf_export():
             continue
         item_musteri = sanitize_name(it.get('musteri') or musteri)
         item_proje = sanitize_name(it.get('proje') or proje)
-        out_dir = os.path.join(PRES_SONUC_DIR, item_musteri, item_proje)
-        os.makedirs(out_dir, exist_ok=True)
+        out_dir = proje_klasoru(item_musteri, item_proje, PRES_SONUC_SUB)
+        name, _ = benzersiz_ad(out_dir, name, '.pdf')
         pdf_path = os.path.join(out_dir, name + '.pdf')
         url = base + 'print_page/' + tok
         profile = tempfile.mkdtemp(prefix='pmpdf_')
